@@ -62,7 +62,7 @@ export default function WebhooksPage() {
           <div className="flex items-center justify-center py-12"><div className="w-7 h-7 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
           <Table>
-            <Thead><tr><Th>URL</Th><Th>Description</Th><Th>Events</Th><Th>Status</Th><Th>Last Delivery</Th><Th>Failures</Th><Th></Th></tr></Thead>
+            <Thead><tr><Th>URL</Th><Th>Description</Th><Th>Events</Th><Th>Status</Th><Th>Last Delivery</Th><Th>Failures</Th><Th>{null}</Th></tr></Thead>
             <Tbody>
               {webhooks.length === 0 ? (
                 <Tr><Td className="text-center py-12 text-gray-400">
