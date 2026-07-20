@@ -116,7 +116,7 @@ export default function NewBorrowerPage() {
         email:       email.trim() || undefined,
         phone:       phone.trim(),
         nationalId:  nationalId.trim(),
-        address:     address.trim() || undefined,
+        addressLine1:     address.trim() || undefined,
         creditScore: creditScore ? Number(creditScore) : undefined,
       });
       toast('success', 'Borrower created successfully');
