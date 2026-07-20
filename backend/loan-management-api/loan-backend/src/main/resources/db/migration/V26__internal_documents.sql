@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS internal_documents (
     file_type       VARCHAR(100) NOT NULL,
     file_size       BIGINT       NOT NULL,
     data            BYTEA        NOT NULL,
-    uploaded_by_id  BIGINT REFERENCES users(id),
+    uploaded_by_id  BIGINT REFERENCES app_users(id),
     created_at      TIMESTAMP NOT NULL DEFAULT now()
 );
 
