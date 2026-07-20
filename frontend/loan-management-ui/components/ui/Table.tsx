@@ -34,8 +34,8 @@ export function Tr({ children, onClick, className = '' }: { children: React.Reac
   );
 }
 
-export function Td({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <td className={`px-4 py-3 text-gray-700 ${className}`}>{children}</td>;
+export function Td({ children, className = '', onClick }: { children: React.ReactNode; className?: string; onClick?: (e: React.MouseEvent) => void }) {
+  return <td className={`px-4 py-3 text-gray-700 ${className}`} onClick={onClick}>{children}</td>;
 }
 
 export function EmptyRow({ cols, message = 'No data found' }: { cols: number; message?: string }) {

@@ -29,7 +29,7 @@ export default function LoansPage() {
   const load = useCallback(() => {
     setLoading(true);
     loanApi.list(page, 20, status, type)
-      .then((r: { content: Loan[]; totalElements: number }) => { setLoans(r.content ?? []); setTotal(r.totalElements ?? 0); })
+      .then((r: any) => { setLoans(r.content ?? []); setTotal(r.totalElements ?? 0); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [page, status, type]);
