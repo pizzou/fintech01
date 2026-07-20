@@ -66,11 +66,6 @@ export interface User {
   createdAt?:   string;
 }
 
-export type KycStatus =
-  | 'PENDING'
-  | 'VERIFIED'
-  | 'REJECTED';
-
 export interface Borrower {
   id:                      number;
   organization?:           { id: number; name: string };
@@ -108,7 +103,6 @@ export interface Borrower {
   creditReportDate?:       string;
   status:                  BorrowerStatus;
   bankName?:               string;
-  kycStatus: KycStatus;
   bankAccountNumber?:      string;
   bankBranch?:             string;
   createdAt?:              string;
@@ -198,6 +192,32 @@ export interface DashboardStats {
   loanTypeBreakdown:   { type: string; count: number; amount: number }[];
 }
 
+export interface ChartPoint {
+  month:  string;
+  amount: number;
+}
+
+// NOTE: no call sites for queueAction() exist yet elsewhere in the project,
+// so this is intentionally loose (string) rather than a guessed literal union.
+// Tighten to specific action names (e.g. 'CREATE_PAYMENT' | 'APPROVE_LOAN')
+// once real call sites exist.
+export type OfflineActionType = string;
+
+export interface OfflineAction {
+  id:        string;
+  type:      OfflineActionType;
+  payload:   unknown;
+  timestamp: number;
+  synced:    boolean;
+  retries:   number;
+}
+
+// Matches RiskScoringService.RiskResult on the backend exactly (record(score, category)).
+export interface RiskScore {
+  score:    number;
+  category: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+}
+
 export interface AuthResponse {
   token:            string;
   userId:           number;
@@ -251,24 +271,4 @@ export interface BorrowerFile {
   officerComment?:      string;
   verifiedByName?:      string;
   verifiedAt?:          string;
-}
-
-export interface ChartPoint {
-  month:  string;
-  amount: number;
-}
-export type OfflineActionType = string;
-
-export interface OfflineAction {
-  id:        string;
-  type:      OfflineActionType;
-  payload:   unknown;
-  timestamp: number;
-  synced:    boolean;
-  retries:   number;
-}
-// Matches RiskScoringService.RiskResult on the backend exactly (record(score, category)).
-export interface RiskScore {
-  score:    number;
-  category: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
