@@ -35,7 +35,7 @@ export default function BorrowerDetailPage() {
     setEditFirst(b.firstName ?? '');
     setEditLast(b.lastName   ?? '');
     setEditPhone(b.phone     ?? '');
-    setEditAddr(b.address    ?? '');
+    setEditAddr(b.addressLine1    ?? '');
   }, [id]);
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function BorrowerDetailPage() {
         firstName: editFirst,
         lastName:  editLast,
         phone:     editPhone,
-        address:   editAddr,
+        addressLine1:   editAddr,
       });
       toast('success', 'Borrower updated');
       setEditing(false);
@@ -170,7 +170,7 @@ export default function BorrowerDetailPage() {
               { label: 'Email',        value: borrower.email      ?? '—' },
               { label: 'Phone',        value: borrower.phone      ?? '—' },
               { label: 'National ID',  value: borrower.nationalId ?? '—' },
-              { label: 'Address',      value: borrower.address    ?? '—' },
+              { label: 'Address',      value: borrower.addressLine1    ?? '—' },
               { label: 'Credit Score', value: borrower.creditScore != null
                   ? `${borrower.creditScore}${borrower.creditBureau === 'INTERNAL_SIMULATED' ? ' (⚠️ estimate — no live bureau)' : ''}`
                   : '—' },
