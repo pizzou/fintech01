@@ -35,7 +35,7 @@ interface TenantConfig {
 const TenantCtx = createContext<TenantConfig | null>(null);
 export const useTenant = () => useContext(TenantCtx);
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://fintech01.onrender.com/api';
 
 /** Shown only while the one configured institution's profile is loading. */
 const FALLBACK_TENANT: TenantConfig = {
