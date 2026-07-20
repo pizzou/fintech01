@@ -6,7 +6,7 @@ import { AuthContext, useAuthState } from '@/hooks/useAuth';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 import { OfflineProvider } from '@/components/OfflineProvider';
 
-const authHeader = () => {
+const authHeader = (): Record<string, string> => {
   if (typeof window === 'undefined') return {};
   const token = localStorage.getItem('token');
   return token ? { Authorization: `Bearer ${token}` } : {};
