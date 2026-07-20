@@ -267,3 +267,8 @@ export interface OfflineAction {
   synced:    boolean;
   retries:   number;
 }
+// Matches RiskScoringService.RiskResult on the backend exactly (record(score, category)).
+export interface RiskScore {
+  score:    number;
+  category: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+}
