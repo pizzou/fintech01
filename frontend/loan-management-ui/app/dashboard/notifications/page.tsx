@@ -67,9 +67,12 @@ export default function NotificationsPage() {
               link: '/dashboard/loans', time: 'Today' });
 
           const rate = s && s.totalDisbursed > 0 ? (s.totalCollected / s.totalDisbursed) * 100 : 0;
+//    ^ number — no .toFixed() here
+
 if (s && rate >= 80)
   n.push({ id: 'cr-good', type: 'success', title: 'Strong Collection Rate',
     message: `Portfolio collection rate is ${rate.toFixed(0)}% — excellent performance!`, time: 'This week' });
+    //                                              ^ .toFixed() only happens HERE, inside the template string
 else if (s && rate < 50 && s.totalDisbursed > 0)
   n.push({ id: 'cr-low', type: 'warning', title: 'Low Collection Rate',
     message: `Collection rate is only ${rate.toFixed(0)}%. Consider sending payment reminders.`, time: 'This week' });
