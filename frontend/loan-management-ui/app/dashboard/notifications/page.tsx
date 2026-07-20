@@ -34,9 +34,6 @@ export default function NotificationsPage() {
         if (!Array.isArray(real)) console.error('notifications: getMyNotifications did not return an array:', real);
         const n: Notif[] = [];
 
-        // Real, backend-persisted notifications (new applications, contact messages, loan
-        // status changes) come first and are pushed before anything else — a failure further
-        // down (synthetic portfolio-derived alerts) must never wipe these out.
         realList.forEach((r) => {
           n.push({
             id: `real-${r.id}`, realId: r.id, read: r.read,
@@ -46,8 +43,6 @@ export default function NotificationsPage() {
           });
         });
 
-        // Everything below is derived client-side from portfolio data — wrapped separately so
-        // a bad value here (e.g. an unexpected stats shape) can't blank out the real notifications above.
         try {
           if (o.length > 0)
             n.push({ id: 'ov', type: 'danger', title: `${o.length} Overdue Payment${o.length > 1 ? 's' : ''}`,
@@ -66,26 +61,24 @@ export default function NotificationsPage() {
               message: `${hr.length} loan${hr.length > 1 ? 's are' : ' is'} rated HIGH or CRITICAL risk. Review collateral.`,
               link: '/dashboard/loans', time: 'Today' });
 
-          const rate = s && s.totalDisbursed > 0 ? (s.totalCollected / s.totalDisbursed) * 100 : 0;
-//    ^ number — no .toFixed() here
+          const rate: number = s && s.totalDisbursed > 0 ? (s.totalCollected / s.totalDisbursed) * 100 : 0;
 
-if (s && rate >= 80)
-  n.push({ id: 'cr-good', type: 'success', title: 'Strong Collection Rate',
-    message: `Portfolio collection rate is ${rate.toFixed(0)}% — excellent performance!`, time: 'This week' });
-    //                                              ^ .toFixed() only happens HERE, inside the template string
-else if (s && rate < 50 && s.totalDisbursed > 0)
-  n.push({ id: 'cr-low', type: 'warning', title: 'Low Collection Rate',
-    message: `Collection rate is only ${rate.toFixed(0)}%. Consider sending payment reminders.`, time: 'This week' });
+          if (s && rate >= 80)
+            n.push({ id: 'cr-good', type: 'success', title: 'Strong Collection Rate',
+              message: `Portfolio collection rate is ${rate.toFixed(0)}% — excellent performance!`, time: 'This week' });
+          else if (s && rate < 50 && s.totalDisbursed > 0)
+            n.push({ id: 'cr-low', type: 'warning', title: 'Low Collection Rate',
+              message: `Collection rate is only ${rate.toFixed(0)}%. Consider sending payment reminders.`, time: 'This week' });
 
-if (s && s.completedLoans > 0)
-  n.push({ id: 'closed', type: 'success', title: `${s.completedLoans} Loan${s.completedLoans > 1 ? 's' : ''} Fully Repaid`,
-    message: `${s.completedLoans} loan${s.completedLoans > 1 ? 's have' : ' has'} been fully repaid. Great portfolio health!`,
-    link: '/dashboard/loans', time: 'This month' });
+          if (s && s.completedLoans > 0)
+            n.push({ id: 'closed', type: 'success', title: `${s.completedLoans} Loan${s.completedLoans > 1 ? 's' : ''} Fully Repaid`,
+              message: `${s.completedLoans} loan${s.completedLoans > 1 ? 's have' : ' has'} been fully repaid. Great portfolio health!`,
+              link: '/dashboard/loans', time: 'This month' });
 
-if (s)
-  n.push({ id: 'summary', type: 'info', title: 'Portfolio Summary',
-    message: `${s.totalBorrowers} borrowers · ${s.activeLoans} active loans · $${s.totalDisbursed.toLocaleString()} disbursed.`,
-    link: '/dashboard/reports', time: 'Today' });
+          if (s)
+            n.push({ id: 'summary', type: 'info', title: 'Portfolio Summary',
+              message: `${s.totalBorrowers} borrowers · ${s.activeLoans} active loans · $${s.totalDisbursed.toLocaleString()} disbursed.`,
+              link: '/dashboard/reports', time: 'Today' });
         } catch (e) {
           console.error('notifications: failed to build portfolio-derived alerts', e);
         }
