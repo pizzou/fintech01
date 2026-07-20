@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # Backend Java dependencies (Spring Boot, etc.)
+  - package-ecosystem: "maven"
+    directory: "/backend/loan-management-api/loan-backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "backend"]
+
+  # Frontend Node dependencies (Next.js, React, etc.)
+  - package-ecosystem: "npm"
+    directory: "/frontend/loan-management-ui"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "frontend"]
+
+  # Base images used in both Dockerfiles
+  - package-ecosystem: "docker"
+    directory: "/backend/loan-management-api/loan-backend"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+
+  - package-ecosystem: "docker"
+    directory: "/frontend/loan-management-ui"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+
+  # GitHub Actions themselves (a common, often-overlooked supply-chain vector)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "ci"]

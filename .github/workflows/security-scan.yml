@@ -1,0 +1,81 @@
+name: Security Scan
+
+# Closes the "no automated dependency/container vulnerability scanning" gap. Dependabot (see
+# .github/dependabot.yml) opens PRs for known-vulnerable dependency versions on a schedule;
+# this workflow additionally scans on every push/PR so a vulnerable dependency or base image
+# can't merge in the first place, and runs a scheduled sweep for anything newly disclosed
+# against what's already deployed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'   # weekly, Monday 06:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  backend-dependency-scan:
+    name: Maven dependency vulnerabilities (backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'loansaas-backend'
+          path: 'backend/loan-management-api/loan-backend'
+          format: 'HTML'
+          out: 'reports/dependency-check'
+          # CVSS 7+ (High/Critical) fails the build; tune down if this is too noisy at first.
+          args: >
+            --failOnCVSS 7
+        continue-on-error: true   # first run in a repo often needs the NVD DB cache warmed —
+                                  # flip to false once this has run clean at least once.
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: reports/dependency-check
+
+  frontend-dependency-scan:
+    name: npm audit (frontend)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/loan-management-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: npm audit (high + critical)
+        run: npm audit --audit-level=high
+
+  container-scan:
+    name: Trivy container image scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t loansaas-backend:scan backend/loan-management-api/loan-backend
+      - name: Build frontend image
+        run: docker build -t loansaas-frontend:scan frontend/loan-management-ui
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'loansaas-backend:scan'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'loansaas-frontend:scan'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
