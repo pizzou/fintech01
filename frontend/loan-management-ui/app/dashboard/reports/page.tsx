@@ -52,14 +52,14 @@ export default function ReportsPage() {
 
   if (loading) return <PageSpinner />;
 
-  const rate = stats && stats.totalAmountLent > 0
-    ? ((stats.paymentsCollected / stats.totalAmountLent) * 100).toFixed(1) : '0';
+  const rate = stats && stats.totalDisbursed > 0
+    ? ((stats.totalCollected / stats.totalDisbursed) * 100).toFixed(1) : '0';
 
   const statusRows = [
-    { label: 'Active',   count: stats?.activeLoans   ?? 0, color: 'bg-green-500'  },
-    { label: 'Pending',  count: stats?.pendingLoans  ?? 0, color: 'bg-yellow-400' },
-    { label: 'Rejected', count: stats?.rejectedLoans ?? 0, color: 'bg-red-500'    },
-    { label: 'Closed',   count: stats?.closedLoans   ?? 0, color: 'bg-gray-400'   },
+    { label: 'Active',   count: stats?.activeLoans    ?? 0, color: 'bg-green-500'  },
+    { label: 'Pending',  count: stats?.pendingLoans   ?? 0, color: 'bg-yellow-400' },
+    { label: 'Defaulted',count: stats?.defaultedLoans ?? 0, color: 'bg-red-500'    },
+    { label: 'Closed',   count: stats?.completedLoans ?? 0, color: 'bg-gray-400'   },
   ];
   const total = statusRows.reduce((s, r) => s + r.count, 0) || 1;
 
@@ -90,10 +90,10 @@ export default function ReportsPage() {
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Disbursed',  value: fmt(stats?.totalAmountLent),    color: 'text-indigo-600' },
-          { label: 'Collected',        value: fmt(stats?.paymentsCollected),  color: 'text-green-600'  },
+          { label: 'Total Disbursed',  value: fmt(stats?.totalDisbursed),   color: 'text-indigo-600' },
+          { label: 'Collected',        value: fmt(stats?.totalCollected),   color: 'text-green-600'  },
           { label: 'Collection Rate',  value: `${rate}%`,                   color: 'text-blue-600'   },
-          { label: 'Penalty Income',   value: fmt(stats?.penaltiesCollected), color: 'text-orange-600' },
+          { label: 'Outstanding',      value: fmt(stats?.outstandingBalance), color: 'text-orange-600' },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-5">
             <p className="text-gray-500 text-xs uppercase tracking-wide">{label}</p>
@@ -170,8 +170,8 @@ export default function ReportsPage() {
           {[
             { label: 'Borrowers',    value: stats?.totalBorrowers  ?? 0, emoji: '👥' },
             { label: 'Active Loans', value: stats?.activeLoans     ?? 0, emoji: '📋' },
-            { label: 'Overdue',      value: stats?.overduePayments ?? 0, emoji: '⚠️' },
-            { label: 'Closed',       value: stats?.closedLoans     ?? 0, emoji: '✅' },
+            { label: 'Overdue',      value: stats?.overdueLoans    ?? 0, emoji: '⚠️' },
+            { label: 'Closed',       value: stats?.completedLoans  ?? 0, emoji: '✅' },
           ].map(({ label, value, emoji }) => (
             <div key={label}>
               <p className="text-3xl mb-1">{emoji}</p>
