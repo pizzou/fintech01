@@ -195,11 +195,26 @@ export default function ApplyPage() {
           {steps.map((s, i) => (
             <div key={s.n} className="flex items-center">
               <div className="flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all
-                  ${step > s.n ? 'text-white' : step === s.n ? 'text-white ring-4 ring-offset-2' : 'bg-gray-100 text-gray-400'}`}
-                  style={step >= s.n ? { backgroundColor: primary, ringColor: primary + '40' } : {}}>
-                  {step > s.n ? '✓' : s.n}
-                </div>
+                <div
+  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all
+    ${
+      step > s.n
+        ? "text-white"
+        : step === s.n
+        ? "text-white ring-4 ring-offset-2"
+        : "bg-gray-100 text-gray-400"
+    }`}
+  style={
+    step >= s.n
+      ? {
+          backgroundColor: primary,
+          boxShadow: `0 0 0 4px ${primary}40`,
+        }
+      : undefined
+  }
+>
+  {step > s.n ? "✓" : s.n}
+</div>
                 <div className={`text-xs mt-1 font-semibold hidden md:block ${step === s.n ? 'text-gray-900' : 'text-gray-400'}`}>
                   {s.label}
                 </div>
@@ -379,9 +394,7 @@ export default function ApplyPage() {
                 <span className="text-sm text-gray-700">
                   I confirm that all information provided is true and accurate. I authorize {tenant.name} to verify
                   my information and contact me regarding this application. I agree to the
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold underline ml-1" style={{ color: primary }}>Terms &amp; Conditions</a>
-                  {' '}and{' '}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold underline" style={{ color: primary }}>Privacy Policy</a>.
+                  <a href="#" className="font-semibold underline ml-1" style={{ color: primary }}>Terms &amp; Conditions</a>.
                 </span>
               </label>
             </div>
