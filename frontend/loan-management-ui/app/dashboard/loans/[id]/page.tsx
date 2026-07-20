@@ -54,11 +54,11 @@ export default function LoanDetailPage() {
   const [esignBusy, setEsignBusy] = useState(false);
 
   const load = () => {
-    Promise.all([loanApi.get(Number(id)), loanApi.schedule(Number(id))])
-      .then(([l, s]) => {
-        setLoan(l); setSchedule(Array.isArray(s) ? s : []);
-        cacheSet(`/loans/${id}`, { loan: l, schedule: s });
-      })
+   Promise.all([loanApi.get(Number(id)), loanApi.schedule(Number(id))])
+  .then(([l, s]: [any, any]) => {
+    setLoan(l); setSchedule(Array.isArray(s) ? s : []);
+    cacheSet(`/loans/${id}`, { loan: l, schedule: s });
+  })
       .catch(async (e) => {
         const cached = await cacheGet<{ loan: Loan; schedule: Payment[] }>(`/loans/${id}`);
         if (cached) {
