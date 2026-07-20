@@ -102,6 +102,8 @@ export interface Borrower {
   creditBureau?:           string;
   creditReportDate?:       string;
   status:                  BorrowerStatus;
+  // Backend defaults this to 'PENDING' if null — see Borrower.java.
+  kycStatus:               'PENDING' | 'VERIFIED' | 'REJECTED';
   bankName?:               string;
   bankAccountNumber?:      string;
   bankBranch?:             string;
