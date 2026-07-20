@@ -66,23 +66,23 @@ export default function NotificationsPage() {
               message: `${hr.length} loan${hr.length > 1 ? 's are' : ' is'} rated HIGH or CRITICAL risk. Review collateral.`,
               link: '/dashboard/loans', time: 'Today' });
 
-          const rate = s && s.totalAmountLent > 0 ? (s.paymentsCollected / s.totalAmountLent) * 100 : 0;
-          if (s && rate >= 80)
-            n.push({ id: 'cr-good', type: 'success', title: 'Strong Collection Rate',
-              message: `Portfolio collection rate is ${rate.toFixed(0)}% — excellent performance!`, time: 'This week' });
-          else if (s && rate < 50 && s.totalAmountLent > 0)
-            n.push({ id: 'cr-low', type: 'warning', title: 'Low Collection Rate',
-              message: `Collection rate is only ${rate.toFixed(0)}%. Consider sending payment reminders.`, time: 'This week' });
+          const rate = s && s.totalDisbursed > 0 ? (s.totalCollected / s.totalDisbursed) * 100 : 0;
+if (s && rate >= 80)
+  n.push({ id: 'cr-good', type: 'success', title: 'Strong Collection Rate',
+    message: `Portfolio collection rate is ${rate.toFixed(0)}% — excellent performance!`, time: 'This week' });
+else if (s && rate < 50 && s.totalDisbursed > 0)
+  n.push({ id: 'cr-low', type: 'warning', title: 'Low Collection Rate',
+    message: `Collection rate is only ${rate.toFixed(0)}%. Consider sending payment reminders.`, time: 'This week' });
 
-          if (s && s.closedLoans > 0)
-            n.push({ id: 'closed', type: 'success', title: `${s.closedLoans} Loan${s.closedLoans > 1 ? 's' : ''} Fully Repaid`,
-              message: `${s.closedLoans} loan${s.closedLoans > 1 ? 's have' : ' has'} been fully repaid. Great portfolio health!`,
-              link: '/dashboard/loans', time: 'This month' });
+if (s && s.completedLoans > 0)
+  n.push({ id: 'closed', type: 'success', title: `${s.completedLoans} Loan${s.completedLoans > 1 ? 's' : ''} Fully Repaid`,
+    message: `${s.completedLoans} loan${s.completedLoans > 1 ? 's have' : ' has'} been fully repaid. Great portfolio health!`,
+    link: '/dashboard/loans', time: 'This month' });
 
-          if (s)
-            n.push({ id: 'summary', type: 'info', title: 'Portfolio Summary',
-              message: `${s.totalBorrowers} borrowers · ${s.activeLoans} active loans · $${s.totalAmountLent.toLocaleString()} disbursed.`,
-              link: '/dashboard/reports', time: 'Today' });
+if (s)
+  n.push({ id: 'summary', type: 'info', title: 'Portfolio Summary',
+    message: `${s.totalBorrowers} borrowers · ${s.activeLoans} active loans · $${s.totalDisbursed.toLocaleString()} disbursed.`,
+    link: '/dashboard/reports', time: 'Today' });
         } catch (e) {
           console.error('notifications: failed to build portfolio-derived alerts', e);
         }
