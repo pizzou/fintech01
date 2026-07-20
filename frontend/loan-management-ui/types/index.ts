@@ -66,6 +66,11 @@ export interface User {
   createdAt?:   string;
 }
 
+export type KycStatus =
+  | 'PENDING'
+  | 'VERIFIED'
+  | 'REJECTED';
+
 export interface Borrower {
   id:                      number;
   organization?:           { id: number; name: string };
@@ -103,6 +108,7 @@ export interface Borrower {
   creditReportDate?:       string;
   status:                  BorrowerStatus;
   bankName?:               string;
+  kycStatus: KycStatus;
   bankAccountNumber?:      string;
   bankBranch?:             string;
   createdAt?:              string;
