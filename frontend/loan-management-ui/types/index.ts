@@ -257,3 +257,13 @@ export interface ChartPoint {
   month:  string;
   amount: number;
 }
+export type OfflineActionType = string;
+
+export interface OfflineAction {
+  id:        string;
+  type:      OfflineActionType;
+  payload:   unknown;
+  timestamp: number;
+  synced:    boolean;
+  retries:   number;
+}
