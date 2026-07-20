@@ -252,3 +252,8 @@ export interface BorrowerFile {
   verifiedByName?:      string;
   verifiedAt?:          string;
 }
+
+export interface ChartPoint {
+  month:  string;
+  amount: number;
+}
