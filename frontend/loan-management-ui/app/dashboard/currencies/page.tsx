@@ -23,7 +23,7 @@ export default function CurrenciesPage() {
   const load = () => {
     setLoading(true);
     currencyApi.rates(base)
-      .then(setRates).catch((e: any) => setError(e.message)).finally(() => setLoading(false));
+      .then((data: any) => setRates(data)).catch((e: any) => setError(e.message)).finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, [base]);
@@ -45,8 +45,8 @@ export default function CurrenciesPage() {
   const handleConvert = async () => {
     setConverting(true);
     try {
-      const r = await currencyApi.convert(from, to, Number(amount));
-      setConverted(r?.converted ?? r);
+      const r: any = await currencyApi.convert(from, to, Number(amount));
+setConverted(r?.converted ?? r);
     } catch (e: any) { setError(e.message); }
     setConverting(false);
   };
