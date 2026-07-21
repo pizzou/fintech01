@@ -26,10 +26,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loanApi.dashboard()
-      loanApi.dashboard()
-  .then((data: any) => setStats(data))
-  .catch(e => setError(e.message))
-  .finally(() => setLoading(false));
+      .then((data: any) => setStats(data))
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return (

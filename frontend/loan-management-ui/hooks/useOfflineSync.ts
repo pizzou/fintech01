@@ -1,5 +1,15 @@
 'use client';
-import { OfflineAction, OfflineActionType } from '../types/index';
+
+export type OfflineActionType = string;
+
+export interface OfflineAction {
+  id:        string;
+  type:      OfflineActionType;
+  payload:   unknown;
+  timestamp: number;
+  synced:    boolean;
+  retries:   number;
+}
 
 const DB_NAME = 'loansaas_offline';
 const STORE   = 'pending_actions';

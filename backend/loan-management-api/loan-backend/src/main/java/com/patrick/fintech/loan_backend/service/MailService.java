@@ -253,6 +253,19 @@ public class MailService {
     // ---- KYC document verification emails ----
 
     @Async
+    public void sendBorrowerWelcome(Borrower borrower) {
+        if (!mailEnabled) { log.info("[EMAIL] Borrower profile created: {}", borrower.getEmail()); return; }
+        if (borrower.getEmail() == null) return;
+        send(borrower.getEmail(),
+            "Your Profile Has Been Created",
+            "<h2>Welcome</h2>" +
+            "<p>Dear " + borrower.getFullName() + ",</p>" +
+            "<p>A borrower profile has been created for you. Our team will reach out if we need any further information from you.</p>" +
+            "<p>Thank you.<br/>Loan Management System</p>"
+        );
+    }
+
+    @Async
     public void sendDocumentVerified(Borrower borrower, String documentType) {
         if (!mailEnabled) { log.info("[EMAIL] Document verified: {} for {}", documentType, borrower.getEmail()); return; }
         if (borrower.getEmail() == null) return;

@@ -65,12 +65,14 @@ public class BorrowerFileController {
 
     /** Attachment download — forces "Save As". */
     @GetMapping("/download/{fileId}")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<byte[]> download(@PathVariable Long fileId) {
         return serveFile(fileId, "attachment", "DOCUMENT_DOWNLOADED", "Downloaded");
     }
 
     /** Inline view — for the "Preview" / "Open in new tab" buttons; browser renders images/PDFs directly. */
     @GetMapping("/preview/{fileId}")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<byte[]> preview(@PathVariable Long fileId) {
         return serveFile(fileId, "inline", "DOCUMENT_PREVIEWED", "Previewed");
     }
@@ -122,6 +124,7 @@ public class BorrowerFileController {
     }
 
     @DeleteMapping("/{fileId}")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<Void> delete(@PathVariable Long fileId) {
         User user = currentUserUtil.getCurrentUser();
         BorrowerFile file = fileService.getByIdForOrg(fileId, user.getOrganization().getId());

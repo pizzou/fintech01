@@ -9,10 +9,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import java.security.SecureRandom;
 import java.util.LinkedHashMap;
 import java.util.Map;
 @RestController @RequestMapping("/api/auth") @RequiredArgsConstructor
@@ -25,6 +26,7 @@ public class AuthController {
     private final MailService mailService;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private static final SecureRandom OTP_RANDOM = new SecureRandom();
 
     @PostMapping("/register") @Transactional
     public ResponseEntity<Map<String,Object>> register(@RequestBody RegisterRequest req) {
@@ -104,9 +106,42 @@ public class AuthController {
                 return ResponseEntity.ok(Map.of("mfaRequired",true,"email",user.getEmail()));
             }
             if(!mfaService.verifyCode(user,req.getMfaCode())) throw new RuntimeException("Invalid MFA code");
+        } else {
+            // No TOTP app enrolled (and this role doesn't mandate one) — fall back to a
+            // one-time code emailed at sign-in as a lighter-weight second factor. Every
+            // login goes through this, not just the mandatory-MFA roles.
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+
+            if (req.getOtp() == null || req.getOtp().isBlank()) {
+                String code = String.format("%06d", OTP_RANDOM.nextInt(1_000_000));
+                user.setLoginOtpHash(passwordEncoder.encode(code));
+                user.setLoginOtpExpiresAt(now.plusMinutes(5));
+                user.setLoginOtpAttempts(0);
+                userRepository.save(user);
+                mailService.sendLoginOtp(user, code);
+                return ResponseEntity.ok(Map.of(
+                    "otpRequired", true, "email", user.getEmail(),
+                    "message", "We sent a 6-digit verification code to your email."));
+            }
+
+            if (user.getLoginOtpHash() == null || user.getLoginOtpExpiresAt() == null || user.getLoginOtpExpiresAt().isBefore(now)) {
+                throw new RuntimeException("Your verification code has expired. Please sign in again to get a new one.");
+            }
+            int otpAttempts = user.getLoginOtpAttempts() == null ? 0 : user.getLoginOtpAttempts();
+            if (otpAttempts >= 5) {
+                user.setLoginOtpHash(null); user.setLoginOtpExpiresAt(null); user.setLoginOtpAttempts(0);
+                userRepository.save(user);
+                throw new RuntimeException("Too many incorrect codes. Please sign in again to get a new one.");
+            }
+            if (!passwordEncoder.matches(req.getOtp().trim(), user.getLoginOtpHash())) {
+                user.setLoginOtpAttempts(otpAttempts + 1);
+                userRepository.save(user);
+                throw new RuntimeException("Incorrect verification code.");
+            }
+            // Correct — consume it so it can't be reused, then fall through to issue a session token.
+            user.setLoginOtpHash(null); user.setLoginOtpExpiresAt(null); user.setLoginOtpAttempts(0);
+            userRepository.save(user);
         }
-        // No TOTP app enrolled and this role doesn't mandate MFA — proceed directly.
-        // (Previously fell back to emailing a one-time code here; that step is disabled.)
         auditService.log(user.getOrganization(), user, "LOGIN_SUCCESS", "AUTH",
             String.valueOf(user.getId()), user.getName() + " signed in", null, null, "Authentication");
 

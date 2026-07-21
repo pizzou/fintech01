@@ -46,7 +46,7 @@ export default function CurrenciesPage() {
     setConverting(true);
     try {
       const r: any = await currencyApi.convert(from, to, Number(amount));
-setConverted(r?.converted ?? r);
+      setConverted(r?.converted ?? r);
     } catch (e: any) { setError(e.message); }
     setConverting(false);
   };

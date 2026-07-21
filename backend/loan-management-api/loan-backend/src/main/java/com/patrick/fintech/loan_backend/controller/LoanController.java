@@ -34,6 +34,7 @@ public class LoanController {
         User user = currentUserUtil.getCurrentUser();
         Loan loan = loanService.createLoan(req, user.getOrganization().getId(), user);
         loanApprovalService.initiateChain(loan); // sets up the maker-checker steps this loan's size requires
+        try { mailService.sendApplicationReceived(loan); } catch (Exception e) { /* best-effort, never blocks loan creation */ }
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Loan created", loan));
     }
 
