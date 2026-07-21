@@ -55,6 +55,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(error(friendly, null));
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String,Object>> handleMaxUpload(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        log.warn("Upload rejected — exceeds servlet max request size: {}", ex.getMessage());
+        return ResponseEntity.badRequest().body(error("File is too large for the server to accept. Please upload a smaller file.", null));
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String,Object>> handleRuntime(RuntimeException ex) {
         log.warn("Business error: {}", ex.getMessage());

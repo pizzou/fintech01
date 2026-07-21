@@ -17,7 +17,8 @@ export interface CreateLoanPayload {
   collateralDescription?: string;
 }
 
-export const getLoans           = (): Promise<Loan[]>         => get('/loans') as Promise<Loan[]>;
+export const getLoans           = (): Promise<Loan[]>         =>
+  get('/loans?page=0&size=5000').then((r: any) => (Array.isArray(r) ? r : (r?.content ?? [])));
 export const getLoanById        = (id: number): Promise<Loan> => get(`/loans/${id}`) as Promise<Loan>;
 export const getLoansByBorrower = (id: number): Promise<Loan[]> => get(`/loans/borrower/${id}`) as Promise<Loan[]>;
 export const createLoan         = (p: CreateLoanPayload): Promise<Loan> => post('/loans', p) as Promise<Loan>;
