@@ -4,6 +4,7 @@ import { get, post, put, del } from '../../../services/api';
 import { toast } from '../../../hooks/useToast';
 import { PageSpinner } from '../../../components/ui/Skeleton';
 import { Pill } from '../../../components/ui/Badge';
+import { LOAN_TYPE_META } from '../../../lib/utils';
 
 interface Product {
   id: number;
@@ -151,7 +152,7 @@ export default function LoanProductsPage() {
               <label className="text-xs font-semibold text-gray-500">Loan Type (drives which product applies when this type of loan is created)</label>
               <select className="w-full border border-gray-300 rounded-lg p-2 text-sm mt-1"
                 value={editing.loanType ?? 'PERSONAL'} onChange={(e) => setEditing({ ...editing, loanType: e.target.value })}>
-                {LOAN_TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+                {LOAN_TYPES.map(t => <option key={t} value={t}>{LOAN_TYPE_META[t]?.label ?? t.replace('_', ' ')}</option>)}
               </select>
             </div>
 

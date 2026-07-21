@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import { getDashboardStats, getLoanChartData, getCollectionChart } from '../../../services/dashboardService';
 import { getOverduePayments } from '../../../services/paymentService';
-import { DashboardStats, Payment, ChartPoint } from '../../../types/index';
+import { getLoans } from '../../../services/loanService';
+import { DashboardStats, Payment, ChartPoint, Loan } from '../../../types/index';
 import { PageSpinner } from '../../../components/ui/Skeleton';
 import { BarChart, AreaChart } from '../../../components/charts/BarChart';
 import API from '../../../services/api';
@@ -29,6 +30,7 @@ async function downloadReport(endpoint: string, label: string) {
 export default function ReportsPage() {
   const [stats,        setStats]        = useState<DashboardStats | null>(null);
   const [overdue,      setOverdue]      = useState<Payment[]>([]);
+  const [loans,        setLoans]        = useState<Loan[]>([]);
   const [loanChart,    setLoanChart]    = useState<ChartPoint[]>([]);
   const [collectChart, setCollectChart] = useState<ChartPoint[]>([]);
   const [loading,      setLoading]      = useState(true);
@@ -37,12 +39,14 @@ export default function ReportsPage() {
     Promise.all([
       getDashboardStats(),
       getOverduePayments(),
+      getLoans().catch(() => [] as Loan[]),
       getLoanChartData().catch(() => [] as ChartPoint[]),
       getCollectionChart().catch(() => [] as ChartPoint[]),
     ])
-      .then(([s, o, lc, cc]) => {
+      .then(([s, o, ln, lc, cc]) => {
         setStats(s as DashboardStats);
         setOverdue(o as Payment[]);
+        setLoans(ln as Loan[]);
         setLoanChart(lc as ChartPoint[]);
         setCollectChart(cc as ChartPoint[]);
       })
@@ -54,11 +58,13 @@ export default function ReportsPage() {
 
   const rate = stats && stats.totalDisbursed > 0
     ? ((stats.totalCollected / stats.totalDisbursed) * 100).toFixed(1) : '0';
+  const penaltiesSum = overdue.reduce((sum, p) => sum + (p.penalty ?? 0), 0);
+  const rejectedCount = loans.filter(l => l.status === 'REJECTED').length;
 
   const statusRows = [
     { label: 'Active',   count: stats?.activeLoans    ?? 0, color: 'bg-green-500'  },
     { label: 'Pending',  count: stats?.pendingLoans   ?? 0, color: 'bg-yellow-400' },
-    { label: 'Defaulted',count: stats?.defaultedLoans ?? 0, color: 'bg-red-500'    },
+    { label: 'Rejected', count: rejectedCount,              color: 'bg-red-500'    },
     { label: 'Closed',   count: stats?.completedLoans ?? 0, color: 'bg-gray-400'   },
   ];
   const total = statusRows.reduce((s, r) => s + r.count, 0) || 1;
@@ -90,10 +96,10 @@ export default function ReportsPage() {
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Disbursed',  value: fmt(stats?.totalDisbursed),   color: 'text-indigo-600' },
-          { label: 'Collected',        value: fmt(stats?.totalCollected),   color: 'text-green-600'  },
-          { label: 'Collection Rate',  value: `${rate}%`,                   color: 'text-blue-600'   },
-          { label: 'Outstanding',      value: fmt(stats?.outstandingBalance), color: 'text-orange-600' },
+          { label: 'Total Disbursed',  value: fmt(stats?.totalDisbursed), color: 'text-indigo-600' },
+          { label: 'Collected',        value: fmt(stats?.totalCollected), color: 'text-green-600'  },
+          { label: 'Collection Rate',  value: `${rate}%`,                 color: 'text-blue-600'   },
+          { label: 'Penalty Income',   value: fmt(penaltiesSum),          color: 'text-orange-600' },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-5">
             <p className="text-gray-500 text-xs uppercase tracking-wide">{label}</p>

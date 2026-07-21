@@ -75,18 +75,18 @@ export const RISK_COLORS: Record<RiskCategory, string> = {
 };
 
 export const LOAN_TYPE_META: Record<string, { icon: string; label: string; rate: number }> = {
-  PERSONAL:       { icon: '👤', label: 'Personal',       rate: 15   },
-  MORTGAGE:       { icon: '🏠', label: 'Mortgage',       rate: 8.5  },
-  AUTO:           { icon: '🚗', label: 'Auto',           rate: 10   },
-  BUSINESS:       { icon: '🏢', label: 'Business',       rate: 12   },
-  STUDENT:        { icon: '🎓', label: 'Student',        rate: 7    },
-  EMERGENCY:      { icon: '⚡', label: 'Emergency',      rate: 18   },
-  ASSET_FINANCE:  { icon: '⚙️', label: 'Asset Finance',  rate: 11   },
-  SALARY_ADVANCE: { icon: '💵', label: 'Salary Advance', rate: 5    },
-  MICROFINANCE:   { icon: '💡', label: 'Microfinance',   rate: 20   },
-  AGRICULTURAL:   { icon: '🌾', label: 'Agricultural',   rate: 9    },
-  TRADE_FINANCE:  { icon: '📦', label: 'Trade Finance',  rate: 13   },
-  GROUP:          { icon: '👥', label: 'Group Loan',     rate: 14   },
+  PERSONAL:       { icon: '👤', label: 'Personal',              rate: 15   },
+  MORTGAGE:       { icon: '🏠', label: 'Home Loan',              rate: 8.5  },
+  AUTO:           { icon: '🚗', label: 'Car Loan',               rate: 10   },
+  BUSINESS:       { icon: '🏢', label: 'Business Loan',          rate: 12   },
+  STUDENT:        { icon: '🎓', label: 'Students Loan',          rate: 7    },
+  EMERGENCY:      { icon: '⚡', label: 'Emergency Loan',         rate: 18   },
+  ASSET_FINANCE:  { icon: '⚙️', label: 'Equipments Financing',   rate: 11   },
+  SALARY_ADVANCE: { icon: '💵', label: 'Salary Loan',            rate: 5    },
+  MICROFINANCE:   { icon: '💡', label: 'Microfinance',           rate: 20   },
+  AGRICULTURAL:   { icon: '🌾', label: 'Agricultural',           rate: 9    },
+  TRADE_FINANCE:  { icon: '📦', label: 'Contract / Invoice Financing', rate: 13 },
+  GROUP:          { icon: '👥', label: 'Group Loan',             rate: 14   },
 };
 
 export const SUPPORTED_CURRENCIES = [

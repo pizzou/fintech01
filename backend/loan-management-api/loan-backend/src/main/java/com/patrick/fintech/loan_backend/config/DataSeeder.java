@@ -25,24 +25,24 @@ public class DataSeeder implements CommandLineRunner {
     private final OrganizationRepository orgRepo;
     private final UserRepository         userRepo;
     private final RoleRepository         roleRepo;
-    private final CurrencyRateRepository currencyRepo;
     private final PasswordEncoder        encoder;
     private final com.patrick.fintech.loan_backend.service.AccountingService accountingService;
     private final LoanProductRepository  loanProductRepo;
 
     @Override
     public void run(String... args) {
-        if (orgRepo.count() > 0) {
-            log.info("Data already seeded — skipping DataSeeder");
-            return;
-        }
-
         // Production bootstrap path: creates exactly ONE real organization with ONE real admin
         // account, no demo borrowers/loans/payments, no published password. Takes priority over
         // demo seeding whenever BOOTSTRAP_ADMIN_EMAIL is set — which is how a real bank going
-        // live for the first time should always start this app.
+        // live for the first time should always start this app. Only runs if no orgs exist yet
+        // at all, since it's meant for a brand-new deployment, not one that already has orgs.
         String bootstrapEmail = System.getenv("BOOTSTRAP_ADMIN_EMAIL");
         if (bootstrapEmail != null && !bootstrapEmail.isBlank()) {
+            if (orgRepo.count() > 0) {
+                log.info("BOOTSTRAP_ADMIN_EMAIL is set but organizations already exist — skipping "
+                    + "bootstrap (this path is only for a brand-new database).");
+                return;
+            }
             bootstrapProductionOrg(bootstrapEmail);
             return;
         }
@@ -57,7 +57,7 @@ public class DataSeeder implements CommandLineRunner {
         log.warn("║  real admin account with no demo data at all.                  ║");
         log.warn("╚══════════════════════════════════════════════════════════════╝");
 
-        log.info("Running initial data seed...");
+        log.info("Running initial data seed (per-organization — existing orgs are left untouched)...");
 
         // Roles already seeded by Flyway V1 migration
         // Just look them up — create if missing (H2 dev profile)
@@ -65,13 +65,11 @@ public class DataSeeder implements CommandLineRunner {
         Role officerRole = ensureRole("LOAN_OFFICER",   "Approve and disburse loans");
         Role managerRole = ensureRole("MANAGER",        "Branch/portfolio management");
 
-        // Currency rates seeded by Flyway V2 — skip if already present
-        if (currencyRepo.count() == 0) {
-            seedCurrencyRates();
-        }
+    boolean growthCreated = false, nobleCreated = false, infinityCreated = false;
 
     // ===== ORGANIZATION 1: Growth Finance Services Ltd (Rwanda) =====
     if (shouldSeed("growthfinance")) {
+        growthCreated = true;
         Organization growth = orgRepo.save(Organization.builder()
             .name("Growth Finance Services Ltd").industry("Microfinance").country("RW")
             .defaultCurrency("RWF").timezone("Africa/Kigali").locale("en-RW")
@@ -94,7 +92,8 @@ public class DataSeeder implements CommandLineRunner {
             .subscribedAt(LocalDateTime.now()).subscriptionExpiresAt(LocalDateTime.now().plusYears(1))
             .build());
 
-        userRepo.save(makeUser("Eric Nshuti", "admin@growthfinance.rw", "Admin@1234", adminRole, growth));
+        String[] growthAdmin = adminCredsFor("growthfinance", "admin@growthfinance.rw", "Admin@1234");
+        userRepo.save(makeUser("Eric Nshuti", growthAdmin[0], growthAdmin[1], adminRole, growth));
         accountingService.ensureChartOfAccounts(growth);
         userRepo.save(makeUser("Diane Uwase", "officer@growthfinance.rw", "Officer@1234", officerRole, growth));
 
@@ -111,6 +110,7 @@ public class DataSeeder implements CommandLineRunner {
 
         // ===== ORGANIZATION 2: Noble Loan Solutions (Rwanda) =====
     if (shouldSeed("nobleloan")) {
+        nobleCreated = true;
         Organization noble = orgRepo.save(Organization.builder()
             .name("Noble Loan Solutions").industry("Microfinance").country("RW")
             .defaultCurrency("RWF").timezone("Africa/Kigali").locale("en-RW")
@@ -132,7 +132,8 @@ public class DataSeeder implements CommandLineRunner {
             .subscribedAt(LocalDateTime.now()).subscriptionExpiresAt(LocalDateTime.now().plusYears(1))
             .build());
 
-        userRepo.save(makeUser("Patrick Habimana", "admin@nobleloan.rw", "Admin@1234", adminRole, noble));
+        String[] nobleAdmin = adminCredsFor("nobleloan", "admin@nobleloan.rw", "Admin@1234");
+        userRepo.save(makeUser("Patrick Habimana", nobleAdmin[0], nobleAdmin[1], adminRole, noble));
         accountingService.ensureChartOfAccounts(noble);
         userRepo.save(makeUser("Grace Ingabire", "officer@nobleloan.rw", "Officer@1234", officerRole, noble));
 
@@ -149,6 +150,7 @@ public class DataSeeder implements CommandLineRunner {
 
         // ===== ORGANIZATION 3: Infinity Loan Solutions (Rwanda) =====
     if (shouldSeed("infinityloan")) {
+        infinityCreated = true;
         Organization infinity = orgRepo.save(Organization.builder()
             .name("Infinity Loan Solutions").industry("Microfinance").country("RW")
             .defaultCurrency("RWF").timezone("Africa/Kigali").locale("en-RW")
@@ -170,7 +172,8 @@ public class DataSeeder implements CommandLineRunner {
             .subscribedAt(LocalDateTime.now()).subscriptionExpiresAt(LocalDateTime.now().plusMonths(3))
             .build());
 
-        userRepo.save(makeUser("Alice Umutoni", "admin@infinityloan.rw", "Admin@1234", adminRole, infinity));
+        String[] infinityAdmin = adminCredsFor("infinityloan", "admin@infinityloan.rw", "Admin@1234");
+        userRepo.save(makeUser("Alice Umutoni", infinityAdmin[0], infinityAdmin[1], adminRole, infinity));
         accountingService.ensureChartOfAccounts(infinity);
         userRepo.save(makeUser("Robert Mugisha", "officer@infinityloan.rw", "Officer@1234", officerRole, infinity));
 
@@ -186,20 +189,11 @@ public class DataSeeder implements CommandLineRunner {
 
         log.info("");
         log.info("╔══════════════════════════════════════════════════════════════╗");
-        log.info("║          LOANSAAS PRO — DEMO DATA SEEDED                    ║");
+        log.info("║          LOANSAAS PRO — ORGANIZATION STATUS                 ║");
         log.info("╠══════════════════════════════════════════════════════════════╣");
-        if (shouldSeed("growthfinance")) {
-            log.info("║  Growth Finance: admin@growthfinance.rw / Admin@1234        ║");
-            log.info("║                  officer@growthfinance.rw / Officer@1234    ║");
-        }
-        if (shouldSeed("nobleloan")) {
-            log.info("║  Noble Loan:     admin@nobleloan.rw     / Admin@1234        ║");
-            log.info("║                  officer@nobleloan.rw   / Officer@1234      ║");
-        }
-        if (shouldSeed("infinityloan")) {
-            log.info("║  Infinity Loan:  admin@infinityloan.rw  / Admin@1234        ║");
-            log.info("║                  officer@infinityloan.rw / Officer@1234     ║");
-        }
+        logOrgStatus("Growth Finance", "growthfinance", growthCreated);
+        logOrgStatus("Noble Loan",     "nobleloan",     nobleCreated);
+        logOrgStatus("Infinity Loan",  "infinityloan",  infinityCreated);
         log.info("╠══════════════════════════════════════════════════════════════╣");
         log.info("║  No demo borrowers, loans, or payments were created.         ║");
         log.info("╠══════════════════════════════════════════════════════════════╣");
@@ -209,10 +203,9 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     /**
-     * Real go-live path: exactly one organization, one admin user, roles, and currency rates —
-     * nothing else. No demo borrowers, loans, payments, or collection cases, and the admin
-     * password is never logged or published anywhere; it's whatever the operator set in
-     * BOOTSTRAP_ADMIN_PASSWORD.
+     * Real go-live path: exactly one organization, one admin user, and roles — nothing else.
+     * No demo borrowers, loans, payments, or collection cases, and the admin password is never
+     * logged or published anywhere; it's whatever the operator set in BOOTSTRAP_ADMIN_PASSWORD.
      */
     private void bootstrapProductionOrg(String adminEmail) {
         String adminPassword = System.getenv("BOOTSTRAP_ADMIN_PASSWORD");
@@ -234,7 +227,6 @@ public class DataSeeder implements CommandLineRunner {
         Role adminRole   = ensureRole("ADMIN",        "Full platform access");
         ensureRole("LOAN_OFFICER", "Approve and disburse loans");
         ensureRole("MANAGER",      "Branch/portfolio management");
-        if (currencyRepo.count() == 0) seedCurrencyRates();
 
         Organization org = orgRepo.save(Organization.builder()
             .name(orgName).country(orgCountry).defaultCurrency(orgCurrency)
@@ -258,6 +250,48 @@ public class DataSeeder implements CommandLineRunner {
         log.info("╚══════════════════════════════════════════════════════════════╝");
     }
 
+    private void logOrgStatus(String label, String slug, boolean justCreated) {
+        String envKey = slug.toUpperCase().replace("-", "");
+        boolean usedRealCreds = System.getenv("BOOTSTRAP_ADMIN_EMAIL_" + envKey) != null
+            && !System.getenv("BOOTSTRAP_ADMIN_EMAIL_" + envKey).isBlank();
+        if (justCreated && usedRealCreds) {
+            log.info("║  {}: NEW — using your configured BOOTSTRAP_ADMIN_EMAIL_{}", label, envKey);
+        } else if (justCreated) {
+            log.info("║  {}: NEW — admin@{}.rw / officer@{}.rw", label, slug, slug);
+            log.info("║  {}  Published demo password Admin@1234 / Officer@1234 — CHANGE IT NOW", " ".repeat(label.length()));
+        } else if (orgAlreadyExists(slug)) {
+            log.info("║  {}: already exists — password not reprinted (may already be changed)", label);
+        }
+    }
+
+    /**
+     * Real admin credentials for one specific organization, e.g.
+     * BOOTSTRAP_ADMIN_EMAIL_NOBLELOAN / BOOTSTRAP_ADMIN_PASSWORD_NOBLELOAN.
+     * Falls back to the published demo credentials only if neither is set —
+     * this is what makes it safe to keep multiple orgs on one shared backend
+     * without every one of them defaulting to the same public password.
+     */
+    private String[] adminCredsFor(String slug, String defaultEmail, String defaultPassword) {
+        String envKey  = slug.toUpperCase().replace("-", "");
+        String email    = System.getenv("BOOTSTRAP_ADMIN_EMAIL_" + envKey);
+        String password = System.getenv("BOOTSTRAP_ADMIN_PASSWORD_" + envKey);
+        if (email != null && !email.isBlank()) {
+            if (password == null || password.isBlank()) {
+                throw new IllegalStateException("BOOTSTRAP_ADMIN_EMAIL_" + envKey + " is set but "
+                    + "BOOTSTRAP_ADMIN_PASSWORD_" + envKey + " is not — refusing to create an admin "
+                    + "account with no password. Set both, or set neither to use the demo default.");
+            }
+            if (password.length() < 12 || password.equalsIgnoreCase("Admin@1234")
+                    || password.equalsIgnoreCase("password") || password.equalsIgnoreCase("changeme")) {
+                throw new IllegalStateException("BOOTSTRAP_ADMIN_PASSWORD_" + envKey + " is too weak "
+                    + "or a known demo password. Use at least 12 characters and something not "
+                    + "published anywhere.");
+            }
+            return new String[]{ email, password };
+        }
+        return new String[]{ defaultEmail, defaultPassword };
+    }
+
     private String getenvOr(String key, String fallback) {
         String v = System.getenv(key);
         return (v == null || v.isBlank()) ? fallback : v;
@@ -268,11 +302,20 @@ public class DataSeeder implements CommandLineRunner {
      * deployment (see docker-compose.yml), each backend has SEED_ORG set to
      * its own slug, so it only ever seeds (and only ever holds) that one
      * org's data in its own database. Unset (e.g. local dev against one
-     * shared database) seeds all three, matching the original demo setup.
+     * shared database, or a shared production backend serving multiple
+     * fronted orgs) seeds whichever of the three don't already exist yet —
+     * this runs on every startup, so it must stay safe to call repeatedly
+     * without creating duplicate organizations.
      */
     private boolean shouldSeed(String slug) {
         String target = System.getenv("SEED_ORG");
-        return target == null || target.isBlank() || target.equalsIgnoreCase(slug);
+        boolean slugMatches = target == null || target.isBlank() || target.equalsIgnoreCase(slug);
+        return slugMatches && !orgAlreadyExists(slug);
+    }
+
+    private boolean orgAlreadyExists(String slug) {
+        return orgRepo.findAll().stream().anyMatch(o ->
+            o.getName().toLowerCase().replace(" ", "").contains(slug.toLowerCase()));
     }
 
     private Role ensureRole(String name, String desc) {
@@ -287,21 +330,6 @@ public class DataSeeder implements CommandLineRunner {
         u.setRole(role); u.setOrganization(org);
         u.setStatus(User.UserStatus.ACTIVE);
         return u;
-    }
-
-    private void seedCurrencyRates() {
-        String[][] rates = {
-            {"USD","KES","130.5"}, {"USD","UGX","3730.0"}, {"USD","TZS","2480.0"},
-            {"USD","NGN","1580.0"}, {"USD","GHS","12.3"}, {"USD","ZAR","18.7"},
-            {"USD","RWF","1290.0"}, {"USD","ETB","57.5"}, {"USD","EUR","0.92"},
-            {"USD","GBP","0.79"}, {"USD","INR","83.2"}, {"USD","AED","3.67"},
-        };
-        for (String[] r : rates) {
-            if (currencyRepo.findByBaseCurrencyAndTargetCurrency(r[0], r[1]).isEmpty()) {
-                currencyRepo.save(CurrencyRate.builder()
-                    .baseCurrency(r[0]).targetCurrency(r[1]).rate(Double.parseDouble(r[2])).build());
-            }
-        }
     }
 
     private void seedProduct(Organization org, String name, String icon, Loan.LoanType type,
