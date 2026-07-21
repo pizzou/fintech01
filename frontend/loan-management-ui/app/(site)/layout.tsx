@@ -115,15 +115,16 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <ToastContainer />
       <div className="min-h-screen bg-white font-sans">
 
-        {/* Compliance / utility bar */}
-        <div style={{ backgroundColor: primary }} className="text-white/85 text-xs py-2.5 px-4">
-          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-y-1">
-            <div className="flex items-center gap-1.5 font-medium">
-              <IconShield /> Licensed Microfinance Institution — Regulated in {tenant.country === 'RW' ? 'Rwanda' : tenant.country}
-            </div>
-            <div className="flex items-center gap-5">
+        {/* Top utility bar */}
+        <div style={{ backgroundColor: '#0B1220' }} className="text-white/80 text-xs py-2 px-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-6">
               {tenant.contactPhone && <span className="flex items-center gap-1.5"><IconPhone /> {tenant.contactPhone}</span>}
               {tenant.contactEmail && <span className="hidden sm:flex items-center gap-1.5"><IconMail /> {tenant.contactEmail}</span>}
+            </div>
+            <div className="flex items-center gap-1.5 text-white/60">
+              <IconShield /> <span className="hidden sm:inline">Licensed &amp; regulated financial institution</span>
+              <span className="sm:hidden">Regulated institution</span>
             </div>
           </div>
         </div>
