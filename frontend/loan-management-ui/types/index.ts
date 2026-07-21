@@ -102,6 +102,7 @@ export interface Borrower {
   creditBureau?:           string;
   creditReportDate?:       string;
   status:                  BorrowerStatus;
+  kycStatus:               'PENDING' | 'VERIFIED' | 'REJECTED';
   bankName?:               string;
   bankAccountNumber?:      string;
   bankBranch?:             string;
