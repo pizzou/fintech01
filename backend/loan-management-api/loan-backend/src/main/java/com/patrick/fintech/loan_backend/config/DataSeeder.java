@@ -10,13 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
-/**
- * Seeds demo organizations, admin/officer logins, and loan product catalogs on first startup.
- * Deliberately does NOT create any demo borrowers, loans, or payments — those are fabricated
- * customer/financial data and have no place being auto-generated, even for local development.
- * Skipped entirely if organizations already exist (idempotent).
- * Roles are seeded by Flyway V1 migration — DataSeeder just finds them.
- */
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -49,34 +43,40 @@ public void run(String... args) {
     ensureRole("MANAGER", "Branch/portfolio management");
 
     Organization growth = orgRepo.save(
-        Organization.builder()
-            .name("Growth Finance Services Ltd")
-            .industry("Microfinance")
-            .country("RW")
-            .defaultCurrency("RWF")
-            .timezone("Africa/Kigali")
-            .locale("en-RW")
-            .primaryColor("#0D6B3E")
-            .accentColor("#F5A623")
-            .website("https://growthfinance.rw")
-            .contactEmail("info@growthfinance.rw")
-            .contactPhone("+250788000000")
-            .address("KG 7 Ave, Kigali")
-            .registrationNumber("REG-GFS-004")
-            .tagline("Empowering Your Financial Growth")
-            .mission("To provide accessible, affordable financial services.")
-            .vision("To become Rwanda's most trusted financial institution.")
-            .foundedYear(2025)
-            .subscriptionTier(Organization.SubscriptionTier.PROFESSIONAL)
-            .status(Organization.OrgStatus.ACTIVE)
-            .maxUsers(100)
-            .maxActiveLoans(10000)
-            .minLoanAmount(20000.0)
-            .maxLoanAmount(30000000.0)
-            .subscribedAt(LocalDateTime.now())
-            .subscriptionExpiresAt(LocalDateTime.now().plusYears(1))
-            .build()
-    );
+    Organization.builder()
+        .name("Growth Finance Services Ltd")
+        .industry("Microfinance")
+        .country("RW")
+        .defaultCurrency("RWF")
+        .timezone("Africa/Kigali")
+        .locale("en-RW")
+        .primaryColor("#0D6B3E")
+        .accentColor("#F5A623")
+        .website("https://growthfinance.rw")
+        .contactEmail("info@growthfinance.rw")
+        .contactPhone("+250788000000")
+        .address("KG 7 Ave, Kigali, Rwanda")
+        .registrationNumber("REG-GFS-004")
+        .tagline("Empowering Your Financial Growth")
+        .mission("To provide accessible, affordable and transparent financial services to individuals and businesses across Rwanda.")
+        .vision("To become Rwanda's most trusted financial institution, enabling financial inclusion and sustainable economic growth.")
+        .foundedYear(2025)
+        .facebookUrl("https://facebook.com/growthfinancerw")
+        .instagramUrl("https://instagram.com/growthfinancerw")
+        .linkedinUrl("https://linkedin.com/company/growthfinancerw")
+        .twitterUrl("https://twitter.com/growthfinancerw")
+        .whatsappUrl("https://wa.me/250788000000")
+        .mapUrl("https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d63800.15641867!2d30.0644!3d-1.9536!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x19dca75a929d959f%3A0x0!2sKigali!5e0!3m2!1sen!2srw!4v1690000000000")
+        .subscriptionTier(Organization.SubscriptionTier.PROFESSIONAL)
+        .status(Organization.OrgStatus.ACTIVE)
+        .maxUsers(100)
+        .maxActiveLoans(10000)
+        .minLoanAmount(20000.0)
+        .maxLoanAmount(30000000.0)
+        .subscribedAt(LocalDateTime.now())
+        .subscriptionExpiresAt(LocalDateTime.now().plusYears(1))
+        .build()
+);
 
     userRepo.save(
         makeUser(
@@ -144,16 +144,6 @@ public void run(String... args) {
 
     log.info("Growth Finance demo data created successfully.");
 }
-
-       
-        
-    
-
-    /**
-     * Real go-live path: exactly one organization, one admin user, and roles — nothing else.
-     * No demo borrowers, loans, payments, or collection cases, and the admin password is never
-     * logged or published anywhere; it's whatever the operator set in BOOTSTRAP_ADMIN_PASSWORD.
-     */
     private void bootstrapProductionOrg(String adminEmail) {
         String adminPassword = System.getenv("BOOTSTRAP_ADMIN_PASSWORD");
         if (adminPassword == null || adminPassword.isBlank()) {
