@@ -134,12 +134,10 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           <div className="max-w-7xl mx-auto px-4 py-3.5 flex items-center justify-between">
             {/* Brand */}
             <Link href={`/`} className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-md flex items-center justify-center text-white font-bold text-lg"
-                style={{ backgroundColor: primary }}>
-                {tenant.name[0]}
-              </div>
+              <img src="/brand/logo-mark.png" alt={`${tenant.name} logo`}
+                className="h-11 w-auto object-contain" />
               <div>
-                <div className="font-bold text-gray-900 text-lg leading-tight tracking-tight">{tenant.name}</div>
+                <div className="font-display font-bold text-gray-900 text-lg leading-tight tracking-tight">{tenant.name}</div>
                 <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: primary }}>{tenant.tagline}</div>
               </div>
             </Link>
@@ -198,7 +196,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
         <footer style={{ backgroundColor: '#0B1220' }} className="text-white mt-16">
           <div className="max-w-7xl mx-auto px-4 py-12 grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="md:col-span-2">
-              <div className="text-xl font-bold mb-2">{tenant.name}</div>
+              <div className="font-display text-xl font-bold mb-2">{tenant.name}</div>
               <div className="text-white/60 text-sm leading-relaxed mb-4 max-w-md">{tenant.mission}</div>
               <div className="text-sm text-white/50 space-y-1">
                 <div className="flex items-center gap-2">{tenant.address}</div>

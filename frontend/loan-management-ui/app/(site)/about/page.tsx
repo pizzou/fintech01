@@ -16,7 +16,7 @@ export default function AboutPage() {
         <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-12 items-center">
           <div>
             <div className="text-sm font-bold uppercase tracking-widest mb-4 opacity-70">About Us</div>
-            <h1 className="text-4xl md:text-5xl font-extrabold mb-6">
+            <h1 className="font-display text-4xl md:text-5xl font-extrabold mb-6">
               Empowering Rwandans<br/>
               <span style={{ color: accent }}>Since {tenant.founded}</span>
             </h1>
@@ -48,7 +48,7 @@ export default function AboutPage() {
             { icon: '💎', title: 'Our Values',  text: 'Integrity · Transparency · Innovation · Inclusion · Excellence. We believe everyone deserves access to fair and dignified financial services.' },
           ].map(item => (
             <div key={item.title}
-              className="text-center p-8 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all">
+              className="text-center p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all">
               <div className="text-5xl mb-4">{item.icon}</div>
               <h3 className="text-xl font-extrabold mb-3" style={{ color: primary }}>{item.title}</h3>
               <p className="text-gray-600 leading-relaxed">{item.text}</p>
@@ -61,7 +61,7 @@ export default function AboutPage() {
       <section className="py-20" style={{ backgroundColor: primary + '06' }}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-extrabold text-gray-900 mb-4">Why Choose {tenant.name}?</h2>
+            <h2 className="font-display text-3xl font-extrabold text-gray-900 mb-4">Why Choose {tenant.name}?</h2>
             <p className="text-gray-500 text-lg">We are different — and here is why thousands of Rwandans trust us</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -91,7 +91,7 @@ export default function AboutPage() {
       {/* Team */}
       <section className="py-20 max-w-7xl mx-auto px-4">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-extrabold text-gray-900 mb-4">Our Leadership Team</h2>
+          <h2 className="font-display text-3xl font-extrabold text-gray-900 mb-4">Our Leadership Team</h2>
           <p className="text-gray-500">Experienced professionals committed to your financial success</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -111,7 +111,7 @@ export default function AboutPage() {
       {/* CTA */}
       <section className="py-16 text-center px-4">
         <div className="max-w-2xl mx-auto">
-          <h2 className="text-3xl font-extrabold text-gray-900 mb-4">Ready to Partner with Us?</h2>
+          <h2 className="font-display text-3xl font-extrabold text-gray-900 mb-4">Ready to Partner with Us?</h2>
           <p className="text-gray-500 mb-8">Join thousands of Rwandans who have achieved their goals with our support.</p>
           <Link href={`/apply`}
             className="inline-block px-12 py-4 rounded-full text-white font-bold text-lg shadow-xl hover:opacity-90 transition"
