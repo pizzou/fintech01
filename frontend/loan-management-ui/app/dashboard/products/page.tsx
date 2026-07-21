@@ -30,8 +30,8 @@ const LOAN_TYPES = [
 
 const emptyForm = (): Partial<Product> => ({
   name: '', icon: '💰', description: '', loanType: 'PERSONAL',
-  interestRate: 8, interestRateType: 'MONTHLY', minAmount: 50000, maxAmount: 5000000,
-  minTermMonths: 3, maxTermMonths: 36, processingFeePercent: 2, active: true,
+  interestRate: 10, interestRateType: 'MONTHLY', minAmount: 500000, maxAmount: 100000000,
+  minTermMonths: 1, maxTermMonths: 12, processingFeePercent: 2, active: true,
 });
 
 export default function LoanProductsPage() {
