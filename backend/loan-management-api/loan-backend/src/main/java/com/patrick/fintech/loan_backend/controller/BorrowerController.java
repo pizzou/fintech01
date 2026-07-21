@@ -4,6 +4,7 @@ import com.patrick.fintech.loan_backend.dto.*;
 import com.patrick.fintech.loan_backend.model.*;
 import com.patrick.fintech.loan_backend.repository.BorrowerRepository;
 import com.patrick.fintech.loan_backend.service.AuditService;
+import com.patrick.fintech.loan_backend.service.MailService;
 import com.patrick.fintech.loan_backend.util.CurrentUserUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ public class BorrowerController {
     private final BorrowerRepository borrowerRepo;
     private final CurrentUserUtil    currentUserUtil;
     private final AuditService       auditService;
+    private final MailService        mailService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<Page<Borrower>>> list(
@@ -99,6 +101,7 @@ public class BorrowerController {
         Borrower saved = borrowerRepo.save(b);
         auditService.log(org, currentUserUtil.getCurrentUser(), "BORROWER_CREATED", "BORROWER",
             String.valueOf(saved.getId()), "Created borrower " + saved.getFirstName() + " " + saved.getLastName());
+        try { mailService.sendBorrowerWelcome(saved); } catch (Exception e) { /* best-effort, never blocks borrower creation */ }
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.ok("Borrower created", saved));
     }
