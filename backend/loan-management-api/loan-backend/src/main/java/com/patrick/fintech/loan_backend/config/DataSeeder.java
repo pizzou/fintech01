@@ -80,7 +80,7 @@ public class DataSeeder implements CommandLineRunner {
             .tagline("Empowering Your Financial Growth")
             .mission("To provide accessible, affordable and transparent financial services to individuals and businesses across Rwanda.")
             .vision("To be Rwanda's most trusted financial partner, enabling prosperity for every client.")
-            .foundedYear(2020)
+            .foundedYear(2025)
             .facebookUrl("https://facebook.com/growthfinancerw").instagramUrl("https://instagram.com/growthfinancerw")
             .linkedinUrl("https://linkedin.com/company/growthfinancerw").twitterUrl("https://twitter.com/growthfinancerw")
             .whatsappUrl("https://wa.me/250788000000")
