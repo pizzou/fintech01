@@ -45,7 +45,7 @@ export default function ContactPage() {
       <section className="py-20 text-white text-center"
         style={{ background: `linear-gradient(135deg, ${primary} 0%, #0a4a2b 100%)` }}>
         <div className="max-w-3xl mx-auto px-4">
-          <h1 className="font-display text-4xl md:text-5xl font-extrabold mb-4">Get in Touch</h1>
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Get in Touch</h1>
           <p className="text-white/80 text-lg">
             We are here to help. Reach out by phone, email, or visit our office in Kigali.
           </p>
@@ -57,7 +57,7 @@ export default function ContactPage() {
 
           {/* Contact info */}
           <div>
-            <h2 className="font-display text-2xl font-extrabold text-gray-900 mb-8">Contact Information</h2>
+            <h2 className="text-2xl font-extrabold text-gray-900 mb-8">Contact Information</h2>
 
             <div className="space-y-6 mb-10">
               {[
@@ -116,10 +116,10 @@ export default function ContactPage() {
 
           {/* Contact form */}
           <div>
-            <h2 className="font-display text-2xl font-extrabold text-gray-900 mb-8">Send Us a Message</h2>
+            <h2 className="text-2xl font-extrabold text-gray-900 mb-8">Send Us a Message</h2>
 
             {sent ? (
-              <div className="text-center py-16 bg-green-50 rounded-2xl border border-green-200">
+              <div className="text-center py-16 bg-green-50 rounded-3xl border border-green-200">
                 <div className="text-5xl mb-4">✅</div>
                 <h3 className="text-xl font-extrabold text-green-800 mb-2">Message Received!</h3>
                 <p className="text-green-700">Thank you {form.name}. We'll get back to you within 24 hours.</p>
@@ -169,7 +169,7 @@ export default function ContactPage() {
                   {sending && <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                   {sending ? 'Sending…' : 'Send Message ✓'}
                 </button>
-                {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-3 py-2">{error}</div>}
+                {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{error}</div>}
               </form>
             )}
 

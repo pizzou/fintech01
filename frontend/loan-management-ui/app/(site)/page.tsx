@@ -34,7 +34,7 @@ export default function HomePage() {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-white/20 text-xs font-semibold mb-6 tracking-wide uppercase text-white/80">
               Licensed &amp; regulated in {tenant.country === 'RW' ? 'Rwanda' : tenant.country}
             </div>
-            <h1 className="font-display text-4xl md:text-5xl font-bold leading-[1.15] mb-6 tracking-tight">
+            <h1 className="text-4xl md:text-5xl font-bold leading-[1.15] mb-6 tracking-tight">
               {tenant.hero?.headline ?? 'Your Trusted Financial Partner'}
             </h1>
             <p className="text-white/75 text-lg leading-relaxed mb-8 max-w-lg">
@@ -75,7 +75,7 @@ export default function HomePage() {
       </section>
 
       {/* ── STATS ── */}
-      <section className="py-20 bg-gray-50 border-b border-gray-100">
+      <section className="py-14 bg-gray-50 border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-6">
           {(tenant.stats ?? [
             { value: '5,000+', label: 'Clients served', icon: '' },
@@ -89,7 +89,7 @@ export default function HomePage() {
       {/* ── SERVICES PREVIEW ── */}
       <section className="py-20 max-w-7xl mx-auto px-4">
         <div className="text-center mb-12">
-          <h2 className="font-display text-3xl font-bold text-gray-900 mb-4 tracking-tight">Our Financial Products</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4 tracking-tight">Our Financial Products</h2>
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
             Tailored lending solutions for individuals, businesses, and farmers across {tenant.country === 'RW' ? 'Rwanda' : tenant.country}.
           </p>
@@ -97,7 +97,7 @@ export default function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {tenant.services?.map(service => (
             <div key={service.title}
-              className="group bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200">
+              className="group bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200">
               <h3 className="text-lg font-bold text-gray-900 mb-2">{service.title}</h3>
               <p className="text-gray-500 text-sm leading-relaxed mb-4">{service.description}</p>
               <div className="flex items-center justify-between text-xs mb-4">
@@ -122,7 +122,7 @@ export default function HomePage() {
       <section className="py-20" style={{ backgroundColor: primary + '06' }}>
         <div className="max-w-5xl mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="font-display text-3xl font-bold text-gray-900 mb-4 tracking-tight">How to Get a Loan</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4 tracking-tight">How to Get a Loan</h2>
             <p className="text-gray-500 text-lg">A simple, secure 4-step process</p>
           </div>
           <div className="grid md:grid-cols-4 gap-6">
@@ -132,7 +132,7 @@ export default function HomePage() {
               { step:'3', title:'Get Approved', desc:'Our credit team reviews your application and responds within 24 hours.' },
               { step:'4', title:'Receive Funds', desc:'Approved funds are disbursed directly to your mobile money or bank account.' },
             ].map(item => (
-              <div key={item.step} className="text-center bg-white rounded-xl p-6 border border-gray-100 relative">
+              <div key={item.step} className="text-center bg-white rounded-lg p-6 border border-gray-100 relative">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full text-white font-bold text-xs flex items-center justify-center"
                   style={{ backgroundColor: primary }}>{item.step}</div>
                 <div className="font-bold text-gray-900 mb-2 mt-3">{item.title}</div>
@@ -154,7 +154,7 @@ export default function HomePage() {
       {tenant.testimonials && tenant.testimonials.length > 0 && (
         <section className="py-20 max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="font-display text-3xl font-bold text-gray-900 mb-4 tracking-tight">What Our Clients Say</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4 tracking-tight">What Our Clients Say</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {tenant.testimonials.map((t, i) => (
@@ -165,10 +165,10 @@ export default function HomePage() {
       )}
 
       {/* ── CTA BANNER ── */}
-      <section className="py-20 mx-4 md:mx-auto max-w-7xl mb-16">
+      <section className="py-16 mx-4 md:mx-auto max-w-7xl mb-16">
         <div className="rounded-xl p-12 text-center text-white relative overflow-hidden"
           style={{ background: `linear-gradient(135deg, #0B1220, ${primary})` }}>
-          <h2 className="font-display text-3xl md:text-4xl font-bold mb-4 relative z-10 tracking-tight">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 relative z-10 tracking-tight">
             Ready to Take the Next Step?
           </h2>
           <p className="text-white/75 text-lg mb-8 relative z-10 max-w-xl mx-auto">
@@ -245,7 +245,7 @@ function TestimonialCard({ t, primary, accent, delay }: { t: { name: string; rol
   const { ref, visible } = useScrollReveal();
   return (
     <div ref={ref} className={`reveal reveal-delay-${Math.min(delay + 1, 4)} ${visible ? 'reveal-visible' : ''}
-      card-lift bg-white rounded-xl p-6 border border-gray-100`}>
+      card-lift bg-white rounded-lg p-6 border border-gray-100`}>
       <div className="flex mb-3">
         {'★★★★★'.split('').map((s, i) => (
           <span key={i} style={{ color: accent }} className="text-lg">{s}</span>
@@ -274,7 +274,7 @@ function StatCard({ stat, primary, delay }: { stat: { icon: string; value: strin
 
   return (
     <div ref={ref} className={`reveal reveal-delay-${Math.min(delay + 1, 4)} ${visible ? 'reveal-visible' : ''}
-      card-lift bg-white rounded-xl p-6 text-center border border-gray-100`}>
+      card-lift bg-white rounded-lg p-6 text-center border border-gray-100`}>
       <div className="text-3xl font-bold mb-1" style={{ color: primary }}>
         {numericTarget !== null ? animated.toLocaleString() : stat.value}
       </div>

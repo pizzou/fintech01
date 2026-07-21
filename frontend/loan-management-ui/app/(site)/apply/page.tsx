@@ -124,7 +124,7 @@ export default function ApplyPage() {
           style={{ backgroundColor: primary + '15' }}>
           {queuedOffline ? '📡' : (docsComplete ? '🎉' : '📎')}
         </div>
-        <h2 className="font-display text-3xl font-extrabold text-gray-900 mb-4">
+        <h2 className="text-3xl font-extrabold text-gray-900 mb-4">
           {queuedOffline ? 'Saved — Will Submit Automatically'
             : docsComplete ? 'All Set — Application Complete!'
             : 'One More Step — Upload Your Documents'}
@@ -185,7 +185,7 @@ export default function ApplyPage() {
       {/* Header */}
       <section className="py-12 text-white text-center"
         style={{ background: `linear-gradient(135deg, ${primary}, #0a4a2b)` }}>
-        <h1 className="font-display text-3xl md:text-4xl font-extrabold mb-2">Loan Application</h1>
+        <h1 className="text-3xl md:text-4xl font-extrabold mb-2">Loan Application</h1>
         <p className="text-white/70">Complete the form below — takes less than 5 minutes</p>
       </section>
 
@@ -226,7 +226,7 @@ export default function ApplyPage() {
           ))}
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
           {/* STEP 1: Personal Info */}
           {step === 1 && (
             <div>
@@ -383,7 +383,7 @@ export default function ApplyPage() {
                 ))}
               </div>
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-4 py-3 mb-4">
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">
                   {error}
                 </div>
               )}
