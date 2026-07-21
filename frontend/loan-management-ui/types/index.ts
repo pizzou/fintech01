@@ -102,8 +102,6 @@ export interface Borrower {
   creditBureau?:           string;
   creditReportDate?:       string;
   status:                  BorrowerStatus;
-  // Backend defaults this to 'PENDING' if null — see Borrower.java.
-  kycStatus:               'PENDING' | 'VERIFIED' | 'REJECTED';
   bankName?:               string;
   bankAccountNumber?:      string;
   bankBranch?:             string;
@@ -199,25 +197,10 @@ export interface ChartPoint {
   amount: number;
 }
 
-// NOTE: no call sites for queueAction() exist yet elsewhere in the project,
-// so this is intentionally loose (string) rather than a guessed literal union.
-// Tighten to specific action names (e.g. 'CREATE_PAYMENT' | 'APPROVE_LOAN')
-// once real call sites exist.
-export type OfflineActionType = string;
-
-export interface OfflineAction {
-  id:        string;
-  type:      OfflineActionType;
-  payload:   unknown;
-  timestamp: number;
-  synced:    boolean;
-  retries:   number;
-}
-
-// Matches RiskScoringService.RiskResult on the backend exactly (record(score, category)).
 export interface RiskScore {
   score:    number;
-  category: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  category: RiskCategory;
+  factors?: string[];
 }
 
 export interface AuthResponse {
