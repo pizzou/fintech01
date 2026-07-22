@@ -35,7 +35,7 @@ interface TenantConfig {
 const TenantCtx = createContext<TenantConfig | null>(null);
 export const useTenant = () => useContext(TenantCtx);
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://fintech01.onrender.com/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
 /** Shown only while the one configured institution's profile is loading. */
 const FALLBACK_TENANT: TenantConfig = {
@@ -51,6 +51,22 @@ function IconMail() {
 }
 function IconShield() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>;
+}
+
+function IconFacebook() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.95c5.05-.5 9-4.76 9-9.95z"/></svg>;
+}
+function IconInstagram() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>;
+}
+function IconLinkedin() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.03-1.85-3.03-1.86 0-2.14 1.45-2.14 2.94v5.66H9.36V9h3.41v1.56h.05c.47-.9 1.63-1.85 3.36-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.11 20.45H3.56V9h3.55v11.45z"/></svg>;
+}
+function IconTwitter() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.6 8.7L23.3 22h-7l-5.5-7.2L4.4 22H1.3l8.1-9.3L1 2h7.2l5 6.6L18.9 2zm-1.2 18h1.7L7.4 4H5.6l12.1 16z"/></svg>;
+}
+function IconWhatsapp() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.87 9.87 0 0 0 4.74 1.21h.01c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.06c-.24.68-1.4 1.32-1.93 1.4-.5.08-1.11.11-1.79-.11-.41-.13-.94-.31-1.62-.6-2.85-1.23-4.7-4.1-4.85-4.29-.14-.19-1.16-1.55-1.16-2.95 0-1.41.73-2.1.99-2.39.26-.29.57-.36.76-.36.19 0 .38 0 .55.01.18.01.41-.07.64.49.24.58.81 2 .88 2.14.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.17-.29.37-.42.5-.14.14-.28.29-.12.57.16.28.71 1.17 1.52 1.89 1.05.93 1.93 1.22 2.21 1.36.28.14.44.12.61-.07.16-.19.69-.8.87-1.08.18-.28.36-.23.6-.14.24.09 1.53.72 1.79.85.26.14.44.2.5.32.06.11.06.65-.18 1.33z"/></svg>;
 }
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
@@ -201,10 +217,45 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
               <div className="text-xl font-bold mb-2">{tenant.name}</div>
               <div className="text-white/60 text-sm leading-relaxed mb-4 max-w-md">{tenant.mission}</div>
               <div className="text-sm text-white/50 space-y-1">
-                <div className="flex items-center gap-2">{tenant.address}</div>
-                <div className="flex items-center gap-2"><IconPhone /> {tenant.contactPhone}</div>
-                <div className="flex items-center gap-2"><IconMail /> {tenant.contactEmail}</div>
+                {tenant.address && <div className="flex items-center gap-2">{tenant.address}</div>}
+                {tenant.contactPhone && <div className="flex items-center gap-2"><IconPhone /> {tenant.contactPhone}</div>}
+                {tenant.contactEmail && <div className="flex items-center gap-2"><IconMail /> {tenant.contactEmail}</div>}
               </div>
+              {(tenant.socialMedia?.facebook || tenant.socialMedia?.instagram || tenant.socialMedia?.linkedin
+                || tenant.socialMedia?.twitter || tenant.socialMedia?.whatsapp) && (
+                <div className="flex items-center gap-3 mt-5">
+                  {tenant.socialMedia?.facebook && (
+                    <a href={tenant.socialMedia.facebook} target="_blank" rel="noopener noreferrer" aria-label="Facebook"
+                      className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                      <IconFacebook />
+                    </a>
+                  )}
+                  {tenant.socialMedia?.instagram && (
+                    <a href={tenant.socialMedia.instagram} target="_blank" rel="noopener noreferrer" aria-label="Instagram"
+                      className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                      <IconInstagram />
+                    </a>
+                  )}
+                  {tenant.socialMedia?.linkedin && (
+                    <a href={tenant.socialMedia.linkedin} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"
+                      className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                      <IconLinkedin />
+                    </a>
+                  )}
+                  {tenant.socialMedia?.twitter && (
+                    <a href={tenant.socialMedia.twitter} target="_blank" rel="noopener noreferrer" aria-label="Twitter / X"
+                      className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                      <IconTwitter />
+                    </a>
+                  )}
+                  {tenant.socialMedia?.whatsapp && (
+                    <a href={tenant.socialMedia.whatsapp} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp"
+                      className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                      <IconWhatsapp />
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <div className="font-semibold mb-4 text-white/90 text-sm uppercase tracking-wider">Quick Links</div>
