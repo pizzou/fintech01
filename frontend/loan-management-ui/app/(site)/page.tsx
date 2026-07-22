@@ -189,13 +189,25 @@ export default function HomePage() {
 function LoanCalculator({ primary, accent, currency }: { primary: string; accent: string; currency: string }) {
   const [amount, setAmount]   = React.useState(500000);
   const [months, setMonths]   = React.useState(12);
-  const [rate,   setRate]     = React.useState(15);
-  const mr       = rate / 100 / 12;
-  const monthly  = mr === 0 ? amount / months
-    : amount * (mr * Math.pow(1+mr, months)) / (Math.pow(1+mr, months) - 1);
+  
+  // 1. Force the monthly interest rate calculation to exactly 10% (0.10)
+  const monthlyRate = 0.10; 
+  
+  // 2. Calculate the monthly interest amount accumulated (Flat rate math)
+  const monthlyInterest = amount * monthlyRate;
+  
+  // 3. Calculate the monthly principal payback allocation
+  const monthlyPrincipal = amount / months;
+  
+  // 4. Combine them to get the total fixed monthly installment payment
+  const monthly = monthlyPrincipal + monthlyInterest;
+  
+  // 5. Aggregate totals
   const total    = monthly * months;
   const interest = total - amount;
+  
   const fmt = (n: number) => n.toLocaleString('en-RW', { maximumFractionDigits: 0 });
+
 
   return (
     <div>
