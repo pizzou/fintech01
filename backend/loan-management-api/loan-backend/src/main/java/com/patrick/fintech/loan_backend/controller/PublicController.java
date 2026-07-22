@@ -342,7 +342,7 @@ public class PublicController {
      * review, notifies the org's staff in-app, and confirms to the applicant
      * by SMS — all fully persisted (this used to only log to the console).
      */
-    @PostMapping("/loan-application")
+        @PostMapping("/loan-application")
     @Transactional
     public ResponseEntity<ApiResponse<Map<String,Object>>> submitApplication(
             @RequestBody Map<String,Object> body,
@@ -351,8 +351,7 @@ public class PublicController {
         Organization org = resolveOrg(slug);
         if (org == null) throw new RuntimeException("We couldn't identify this lender. Please refresh the page and try again.");
 
-        // Applications queued while offline are retried on sync — this key (stable
-        // per queued submission) stops a retry from creating a second application.
+        // Applications queued while offline are retried on sync — this key stops duplicate submissions
         var idempotency = idempotencyService.checkOrReserve(idempotencyKey, org, "POST /public/loan-application", body.toString());
         if (idempotency.isReplay()) {
             return ResponseEntity.ok(ApiResponse.ok("Application received", Map.of("status", "RECEIVED", "message", "Already submitted")));
@@ -376,7 +375,7 @@ public class PublicController {
             throw new RuntimeException("Single Status Certificate number is required for single applicants");
         }
 
-        // Find or create the borrower for this org (avoids duplicate profiles on repeat applications)
+        // Find or create the borrower for this org
         Borrower borrower = borrowerRepo.findByPhoneHashAndOrganization_Id(
                 com.patrick.fintech.loan_backend.security.HmacIndexer.index(phone), org.getId())
             .orElseGet(() -> Borrower.builder().organization(org).build());
@@ -384,7 +383,13 @@ public class PublicController {
         borrower.setFirstName(firstName);
         borrower.setLastName(str(body.get("lastName")));
         borrower.setPhone(phone);
-        if (str(body.get("email")) != null) borrower.setEmail(str(body.get("email")));
+        
+        // 🔑 CRUCIAL: Intentionally enforce mapping your input email parameter value to the profile
+        String inputEmail = str(body.get("email"));
+        if (inputEmail != null && !inputEmail.isBlank()) {
+            borrower.setEmail(inputEmail.trim());
+        }
+        
         borrower.setNationalId(str(body.get("nationalId")));
         borrower.setDateOfBirth(date(body.get("dateOfBirth")));
         borrower.setGender(str(body.get("gender")));
@@ -427,10 +432,23 @@ public class PublicController {
 
         Loan loan = loanService.createLoan(req, org.getId(), null);
         loan.setTermsAcceptedAt(LocalDateTime.now());
+        
+        // Explicitly guarantee the borrower entity reference holds the input email details before database execution
+        if (loan.getBorrower() != null && (loan.getBorrower().getEmail() == null || loan.getBorrower().getEmail().isBlank())) {
+            loan.getBorrower().setEmail(inputEmail);
+        }
+        
         loan = loanRepo.save(loan);
 
         notifyStaff(org, borrower, loan);
-        try { mailService.sendApplicationReceived(loan); } catch (Exception e) { log.warn("Application-received email failed", e); }
+
+        // 🔥 CRUCIAL REPAIR: Loud error tracing tracking instead of generic silent catch logging
+        try { 
+            mailService.sendApplicationReceived(loan); 
+            log.info("[EMAIL SUCCESS] Dispatched application received alert to: {}", borrower.getEmail());
+        } catch (Exception e) { 
+            log.error("[EMAIL CRITICAL FAILURE] Outbound loan receipt transmission failed line error trace:", e); 
+        }
 
         try {
             smsService.sendCustom(phone, String.format(

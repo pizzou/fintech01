@@ -335,24 +335,30 @@ export default function ApplyPage() {
                 <Field label="Collateral (if any)"><input className={inp} placeholder="e.g. Land title, vehicle logbook" value={form.collateral} onChange={set('collateral')} /></Field>
                 <Field label={`Collateral Value (${tenant.currency})`}><input type="number" className={inp} value={form.collateralValue} onChange={set('collateralValue')} /></Field>
               </div>
-              {/* Mini loan summary */}
+                           {/* Mini loan summary */}
               {form.amount && (
                 <div className="mt-4 bg-gray-50 rounded-2xl p-4 border border-gray-100">
                   <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Estimated Repayment</div>
                   <div className="grid grid-cols-3 gap-3 text-center text-sm">
                     {(() => {
-                      const svc = tenant.services?.find(s => s.title === form.loanType);
-                      const rate = parseFloat(svc?.rate ?? '15') / 100 / 12;
                       const principal = Number(form.amount);
                       const months = Number(form.durationMonths);
-                      const monthly = rate === 0 ? principal/months : principal*(rate*Math.pow(1+rate,months))/(Math.pow(1+rate,months)-1);
+                      
+                      // 10% monthly flat interest calculation formulas
+                      const flatMonthlyRate = 0.10; 
+                      const monthlyInterest = principal * flatMonthlyRate;
+                      const monthlyPrincipal = principal / months;
+                      const monthly = monthlyPrincipal + monthlyInterest;
+                      
                       return [
-                        ['Monthly', `${tenant.currency} ${monthly.toLocaleString('en',{maximumFractionDigits:0})}`],
-                        ['Total',   `${tenant.currency} ${(monthly*months).toLocaleString('en',{maximumFractionDigits:0})}`],
-                        ['Rate',    svc?.rate ?? '15%'],
-                      ].map(([l,v]) => (
-                        <div key={l}><div className="text-gray-400 text-[10px]">{l}</div>
-                        <div className="font-extrabold" style={{color:primary}}>{v}</div></div>
+                        ['Monthly', `${tenant.currency} ${monthly.toLocaleString('en', { maximumFractionDigits: 0 })}`],
+                        ['Total',   `${tenant.currency} ${(monthly * months).toLocaleString('en', { maximumFractionDigits: 0 })}`],
+                        ['Rate',    '10% / mo'],
+                      ].map(([l, v]) => (
+                        <div key={l}>
+                          <div className="text-gray-400 text-[10px]">{l}</div>
+                          <div className="font-extrabold" style={{ color: primary }}>{v}</div>
+                        </div>
                       ));
                     })()}
                   </div>
