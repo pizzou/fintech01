@@ -168,6 +168,18 @@ public class MailService {
     }
 
     @Async
+    public void sendOverdueReminder(Loan loan, Integer daysOverdue) {
+        if (!mailEnabled) { log.info("[EMAIL] Overdue reminder: {} ({} days)", loan.getReferenceNumber(), daysOverdue); return; }
+        String to = loan.getBorrower().getEmail();
+        if (to == null) return;
+        send(to, "URGENT: Payment Overdue Notice — " + loan.getReferenceNumber(),
+            "<h2>Payment Overdue Alert</h2>" +
+            "<p>Dear " + loan.getBorrower().getFullName() + ",</p>" +
+            "<p>Your loan <strong>" + loan.getReferenceNumber() + "</strong> is currently marked as <strong>OVERDUE</strong> by <strong>" + daysOverdue + " days</strong>.</p>" +
+            "<p>Please settle your outstanding balance immediately to avoid further penalization, legal escalation, or collection queue assignment.</p>");
+    }
+
+    @Async
     public void sendLoanRestructured(Loan loan, String reason) {
         if (!mailEnabled) { log.info("[EMAIL] Loan restructured: {}", loan.getReferenceNumber()); return; }
         String to = loan.getBorrower().getEmail();
