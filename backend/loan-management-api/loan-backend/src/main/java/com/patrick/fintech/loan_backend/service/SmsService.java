@@ -77,13 +77,32 @@ public class SmsService {
     }
 
     private void send(String to, String msg) {
+        String normalized = normalizePhone(to);
+        if (normalized == null) { log.warn("Skipping SMS — invalid phone number: {}", to); return; }
         if (!smsEnabled) { 
-            log.info("[SMS SIMULATION] {} -> {}", to, msg); 
+            log.info("[SMS SIMULATION] {} -> {}", normalized, msg); 
             return; 
         }
-        if (trySendAT(to, msg)) return;
-        if (trySendTwilio(to, msg)) return;
-        log.warn("All SMS providers failed for {}", to);
+        if (trySendAT(normalized, msg)) return;
+        if (trySendTwilio(normalized, msg)) return;
+        log.warn("All SMS providers failed for {}", normalized);
+    }
+
+    /**
+     * Twilio (and most SMS gateways) require strict E.164: a leading '+', country
+     * code, then digits only — no spaces, dashes, or parentheses. Phone numbers
+     * entered by borrowers/staff often look like "+250 788 000 000" or "0788000000",
+     * either of which Twilio silently rejects. Defaults local-format numbers
+     * (starting with 0) to Rwanda's country code — adjust if you serve other countries.
+     */
+    private String normalizePhone(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String digits = raw.replaceAll("[^+0-9]", "");
+        if (digits.isEmpty()) return null;
+        if (digits.startsWith("+")) return digits;
+        if (digits.startsWith("250")) return "+" + digits;
+        if (digits.startsWith("0")) return "+250" + digits.substring(1);
+        return "+250" + digits;
     }
 
     private boolean trySendAT(String to, String msg) {
