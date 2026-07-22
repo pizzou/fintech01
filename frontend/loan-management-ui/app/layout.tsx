@@ -1,15 +1,16 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
-const FAVICON_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAEuElEQVR42u1YQWsbRxR+q5FsyWosakMreuq111xCDykIZLCKEVGoTdhdQaqN/4R/QPojHIUGSUshLRuMiQwqqNinXnzt1Ue54Ji1KkvW7ooerCdGk9ldrTx2Ap4Hi0Y7s2/efPPme2+eoihwryUGIAGQAEgAJAASAAmABEACIAGQAEgAJAASAAnAfZM4+0LXjKwo5fVGtcO+e/znD/FPueCj/KE79UJRrp+ybmSxLeq5DZ3iH2V693v2cE0E0unMQov1gNJbNWNtmvb6wfNnn8oDUt1h09o07YkDlHUjW29UO6WNcnkwuNoVOVkyubht7ddq7PtH759ehZLTUjyB7dGl6whF4VLR/v7pj9+vT4ACcBuL9wPh+7+2RsIXNId800t+ZW2adgwAgLdLosTzvJyQcEV5hAjBY+DLyIlE3CSEtKMqZj3JcVwVACpB7jiL3kxsKc4G7fP/ui5v7JdfPOCu63x08SY0DKIsr6R2eGEsTIoFNTde9ATIoPF4Fu9CHr1/OjsA42hQ07VrkgxT/uLhduLV8a5DCGmj56QzCy2M/R/FX050KL1VM2Euy5Og3KX3pN9Pv0ulek/6fetHc3H94Pmzg/VffwsFIKq8Ot51/Pjk8c/zJz/pd6kURimaT2gPDdygBgAA2ONfoBcvFAARhOSzyzaSKX20evawrWtG66YZamQAdM3IXnzov5x1PCGkbeX9o0xQUpTqDpurv6Qv0btYsh0MruYCvFhQzb2mWdE1IxuPsnBEjt6JMBmP9QWAx8wY9s5HrmMdm4sIZJR5w2wqFlSoN6qVz/Y2yCZL1n6tFhZRooKga0b2swEgthRP4OOX+CyvpHZEghCJAxjGTfJCT71R7RQL6usgV/0oDR4nQqNLj76jjv8rPBsqgYlVgBTyW4O5AZjlrj+P3FUipGtG9uy0C0IAePFw2zcv/xd6kfUFFUmO8ocuelvPHq5hLrDXNCtBdgAADL4brQIAJP+JnQ1gFO0IYBbH22leWJpkdRvlyGztlyXqmpE9gsMOAMDZafeE6a4E2QEAAMfQoduF/NbsAFx86L8sbZQjX4ZE3f7CpLRRLke1y3Hc2QFwHFcVFXdZthdRDxBVv4jNg2bUgshNiVYU4bLX/Xqj2onheRcdX3GSdGahxSO5WQscSICrXz/4VqRdyyupnUlJjJ5MdFE06DqN1+AooUyEbVP23FX5OaxETvf7tW/HHmX6lkcIafNK2mE70rOHa1gL4HnSTeuOtM4w+5DTZplTUZRJlnSChJXOLLToyXr2cA3zAjZU4k1tMLjaxQowq4+XX7D60WA0np6XTrGTycVtnn2sbrbNW0+9Ue1MyuKe5+X2mmalWFBf0wvyPC9HCGkHxXe6H8nl7LR7goVV3rdBOuk+x3FVJEAWcJq4g+bBsInjEUhrv1abRAHHcVVE3/O8HDJ4UH6Ai6Unol2f7uf9Z7/1Y2zUizUBdqGEkLa1X6uhXUH6CCHtRCJuoo4pDmBdEd3Z7wiwrsy+x++jfsdzVZ59vO9584QegfssMT9mZ3/pft47dizb9hvDm89PD2+cn46gueg+6QEAEgAJgARAAiABkABIACQAEgAJgARAAiABkADcN/kfHO0DIf1f+8wAAAAASUVORK5CYII=";
+// Perfect, edge-to-edge square data block embedding your exact GFS logo layout
+const GFS_PRODUCTIONS_ICON = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNDAgMjQwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj48cmVjdCB3aWR0aD0iMjQwIiBoZWlnaHQ9IjI0MCIgZmlsbD0iI0ZGRkZGRiIgcng9IjI0Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTUsIDYwKSBzY2FsZSgwLjUzKSI+PHBhdGggZD0iTSAxNjAgNzAgTCAxNDAgNzAgTCAxNDAgNTAgTCAxNjAgNTAgTCAxNjAgMzAgTCAxMTAgMzAgQyA3MSAzMCwgNTAgNTAsIDUwIDkwIEwgNTAgMTUwIEMgNTAgMTkwLCA3MSAyMTAsIDExMCAyMTAgTCAxNjAgMjEwIEMgMTk5IDIxMCwgMjIwIDE5MCwgMjIwIDE1MCBMIDIyMCAxMTAgTCAxNDAgMTEwIEwgMTQwIDEzMCBMIDE5OCAxMzAgTCAxOTggMTUwIEMgMTk4IDE3NCwgMTg2IDE5MCwgMTYwIDE5MCBMIDExMCAxOTAgQyA4NCAxOTAsIDcyIDE3NCwgNzIgMTUwIEwgNzIgOTAgQyA3MiA2NiwgODQgNTAsIDExMCA1MCBMIDE0MCA1MCBMIDE0MCA3MCBaIiBmaWxsPSIjM0UzQTQ3Ii8+PHBhdGggZD0iTSAyNDAgMzAgTCA0MjAgMzAgTCA0MjAgOTAgTCAzOTYgOTAgTCAzOTYgNTIgTCAzMTYgNTIgTCAzMTYgMTA0IEwgMzYwIDEwNCBMIDM2MCAxMjYgTCAzMTYgMTI2IEwgMzE2IDIxMCBMIDI0MCAyMTAgTCAyNDAgMzAgWiIgZmlsbD0iIzJDQjQ0QiIvPjxwYXRoIGQ9Ik0gMzYwIDkwIEwgMzYwIDcwIEwgNDIwIDcwIEwgNDIwIDkwIFogTSAyOTggMTEwIEwgMjk4IDEzMCBMIDM3MCAxMzAgQyAzOTYgMTMwLCA0MDggMTQ2LCA0MDggMTcwIEwgNDA4IDE5MCBMIDM0MCAxOTAgTCAzNDAgMTY4IEwgMzg2IDE2OCBMIDM4NiAxNTAgTCAzMTQgMTUwIEMgMjg4IDE1MCwgMjc2IDEzNCwgMjc2IDExMCBMIDI3NiA5MCBMIDM0MCA5MCBMIDM0MCAxMTAgWiIgZmlsbD0iIzNFM0E0NyIvPjwvZz48L3N2Zz4=";
 
 export const metadata: Metadata = {
   title: 'Growth Finance Services Ltd — Loans & Financial Services',
   description: 'Growth Finance Services Ltd — licensed loan products, online applications, and secure account management for individuals, businesses, and farmers in Rwanda.',
   icons: {
-    icon: '/icon.svg',
-    shortcut: '/icon.svg',
-    apple: '/icon.svg',
+    icon: GFS_PRODUCTIONS_ICON,
+    shortcut: GFS_PRODUCTIONS_ICON,
+    apple: GFS_PRODUCTIONS_ICON,
   },
 };
 
@@ -17,10 +18,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://googleapis.com" />
+        <link rel="preconnect" href="https://gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@400;600;700;800&display=swap"
+          href="https://googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@400;600;700;800&display=swap"
           rel="stylesheet"
         />
       </head>
