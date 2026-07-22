@@ -1,57 +1,54 @@
 package com.patrick.fintech.loan_backend.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.patrick.fintech.loan_backend.model.Borrower;
 import com.patrick.fintech.loan_backend.model.Loan;
 import com.patrick.fintech.loan_backend.model.User;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
-import java.util.List;
-import java.util.Map;
+import jakarta.mail.internet.MimeMessage;
 
 /**
- * All outbound email — sent via Resend's HTTP API (https://api.resend.com/emails) rather than
- * raw SMTP. Render blocks outbound SMTP ports (25/465/587) on free web services, which made the
- * previous JavaMailSender/Gmail-SMTP setup fail with connection timeouts regardless of how
- * correct the credentials were. Resend sends over plain HTTPS (443), which is never blocked.
+ * All outbound email — the email counterpart to SmsService. Previously this lived inside
+ * NotificationService mixed together with in-app notification creation (notifyUsers), which
+ * made that class do two unrelated jobs. Split out so email templates live in one place the
+ * same way SMS templates do.
  */
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class MailService {
 
-    private static final HttpClient HTTP = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(10))
-        .build();
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private final JavaMailSender mailSender;
 
     @Value("${app.mail.enabled:false}")
     private boolean mailEnabled;
 
-    @Value("${app.mail.from:onboarding@resend.dev}")
+    @Value("${app.mail.from:noreply@loansaas.io}")
     private String from;
 
-    @Value("${RESEND_API_KEY:}")
-    private String resendApiKey;
+    @Value("${spring.mail.username:}")
+    private String smtpUsername;
+
+    @Value("${spring.mail.password:}")
+    private String smtpPassword;
 
     /** Fails loudly at boot instead of silently swallowing every send() call later. Without
-     *  this, "MAIL_ENABLED=true but RESEND_API_KEY unset" looks identical from the outside to
-     *  "everything is fine" — borrowers just never get emails and nothing in the logs points
-     *  at why. */
+     *  this, "MAIL_ENABLED=true but MAIL_USERNAME/MAIL_PASSWORD unset" looks identical from the
+     *  outside to "everything is fine" — borrowers just never get emails and nothing in the logs
+     *  points at why. */
     @jakarta.annotation.PostConstruct
     void checkConfig() {
-        if (mailEnabled && (resendApiKey == null || resendApiKey.isBlank())) {
-            log.error("app.mail.enabled=true but RESEND_API_KEY is blank — every borrower email "
-                + "(application received, approved, rejected, disbursed, document status, login "
-                + "OTP, etc.) will fail silently. Set RESEND_API_KEY via your Render environment "
-                + "variables, not this file. Get a key at https://resend.com/api-keys.");
+        if (mailEnabled && (smtpUsername == null || smtpUsername.isBlank()
+                || smtpPassword == null || smtpPassword.isBlank())) {
+            log.error("app.mail.enabled=true but MAIL_USERNAME/MAIL_PASSWORD are blank — every "
+                + "borrower email (application received, approved, rejected, disbursed, document "
+                + "status, restructuring, etc.) will fail SMTP auth silently. Set real values via "
+                + "environment variables / your secrets manager, not this file.");
         }
     }
 
@@ -68,6 +65,23 @@ public class MailService {
             "<p><strong>Current Status:</strong> Submitted</p>" +
             "<p>You can track your application from your borrower dashboard.</p>" +
             "<p>Thank you.<br/>Loan Management System</p>"
+        );
+    }
+
+        @Async
+    public void sendOverdueReminder(Loan loan, Integer daysOverdue) {
+        if (!mailEnabled) { 
+            log.info("[EMAIL] Overdue reminder: {} ({} days)", loan.getReferenceNumber(), daysOverdue); 
+            return; 
+        }
+        String to = loan.getBorrower().getEmail();
+        if (to == null) return;
+        send(to, 
+            "URGENT: Payment Overdue Notice — " + loan.getReferenceNumber(),
+            "<h2>Payment Overdue Alert</h2>" +
+            "<p>Dear " + loan.getBorrower().getFullName() + ",</p>" +
+            "<p>Your loan <strong>" + loan.getReferenceNumber() + "</strong> is currently marked as <strong>OVERDUE</strong> by <strong>" + daysOverdue + " days</strong>.</p>" +
+            "<p>Please settle your outstanding balance immediately to avoid further penalization, legal escalation, or collection queue assignment.</p>"
         );
     }
 
@@ -170,23 +184,6 @@ public class MailService {
         );
     }
 
-    /** Distinct from the reminder above — this is for a payment that has already missed its
-     *  due date, not one that's coming up. */
-    @Async
-    public void sendOverdueReminder(Loan loan, int daysOverdue) {
-        if (!mailEnabled) { log.info("[EMAIL] Overdue reminder: {} ({} days)", loan.getReferenceNumber(), daysOverdue); return; }
-        String to = loan.getBorrower().getEmail();
-        if (to == null) return;
-        send(to,
-            "URGENT: Payment Overdue — " + loan.getReferenceNumber(),
-            "<h2 style=\"color:#dc2626;\">Payment Overdue</h2>" +
-            "<p>Your loan <strong>" + loan.getReferenceNumber() + "</strong> has a payment that is now "
-            + "<strong>" + daysOverdue + " day(s) overdue</strong>.</p>" +
-            "<p>Outstanding balance: <strong>" + loan.getCurrency() + " " + loan.getOutstandingBalance() + "</strong></p>" +
-            "<p>Please make a payment as soon as possible to avoid further penalties, or contact us if you're facing difficulty.</p>"
-        );
-    }
-
     @Async
     public void sendLoanRestructured(Loan loan, String reason) {
         if (!mailEnabled) { log.info("[EMAIL] Loan restructured: {}", loan.getReferenceNumber()); return; }
@@ -224,8 +221,8 @@ public class MailService {
         send(to,
             "Payment Pause Approved — " + loan.getReferenceNumber(),
             "<h2>Payment Moratorium Granted</h2>" +
-            "<p>Your upcoming payments on loan <strong>" + loan.getReferenceNumber() + "</strong> have been paused for "
-            + "<strong>" + pauseMonths + " month(s)</strong>.</p>" +
+            "<p>Your upcoming payments on loan " + loan.getReferenceNumber() + " have been paused for " +
+            "<strong>" + pauseMonths + " month(s)</strong>.</p>" +
             (reason != null && !reason.isBlank() ? "<p>Reason: " + reason + "</p>" : "") +
             "<p>Your next due date is now <strong>" + loan.getNextDueDate() + "</strong>. No action is needed from you during the pause.</p>"
         );
@@ -252,8 +249,6 @@ public class MailService {
             "<p>If you did not request a password reset, please ignore this email.</p>"
         );
     }
-
-    // ---- KYC document verification emails ----
 
     @Async
     public void sendBorrowerWelcome(Borrower borrower) {
@@ -318,28 +313,14 @@ public class MailService {
     }
 
     private void send(String to, String subject, String html) {
-        if (resendApiKey == null || resendApiKey.isBlank()) {
-            log.warn("Email not sent (no RESEND_API_KEY configured) to {}: {}", to, subject);
-            return;
-        }
         try {
-            Map<String, Object> payload = Map.of(
-                "from",    from,
-                "to",      List.of(to),
-                "subject", subject,
-                "html",    html
-            );
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("https://api.resend.com/emails"))
-                .header("Authorization", "Bearer " + resendApiKey)
-                .header("Content-Type", "application/json")
-                .timeout(Duration.ofSeconds(10))
-                .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(payload)))
-                .build();
-            HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 400) {
-                log.warn("Email send failed to {} (HTTP {}): {}", to, response.statusCode(), response.body());
-            }
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(from);
+            h.setTo(to);
+            h.setSubject(subject);
+            h.setText(html, true);
+            mailSender.send(msg);
         } catch (Exception e) {
             log.warn("Email send failed to {}: {}", to, e.getMessage());
         }
