@@ -23,7 +23,6 @@ import jakarta.mail.internet.MimeMessage;
 @Slf4j
 public class MailService {
 
-    // 🔑 THE FIX: Keep this exact line right here so Spring can inject it at boot!
     private final JavaMailSender mailSender;
 
     @Value("${app.mail.enabled:false}")
@@ -32,33 +31,24 @@ public class MailService {
     @Value("${app.mail.from:noreply@loansaas.io}")
     private String from;
 
+    @Value("${spring.mail.username:}")
+    private String smtpUsername;
+
+    @Value("${spring.mail.password:}")
+    private String smtpPassword;
+
+    /** Fails loudly at boot instead of silently swallowing every send() call later. Without
+     *  this, "MAIL_ENABLED=true but MAIL_USERNAME/MAIL_PASSWORD unset" looks identical from the
+     *  outside to "everything is fine" — borrowers just never get emails and nothing in the logs
+     *  points at why. */
     @jakarta.annotation.PostConstruct
     void checkConfig() {
-        String rawSmtpUsername = System.getenv("SPRING_MAIL_USERNAME");
-        String rawSmtpPassword = System.getenv("SPRING_MAIL_PASSWORD");
-        String rawSmtpHost     = System.getenv("SPRING_MAIL_HOST");
-        String rawSmtpPort     = System.getenv("SPRING_MAIL_PORT");
-
-        if (mailEnabled) {
-            if (rawSmtpUsername == null || rawSmtpUsername.isBlank() || rawSmtpPassword == null || rawSmtpPassword.isBlank()) {
-                log.error("app.mail.enabled=true but environment variables SPRING_MAIL_USERNAME/SPRING_MAIL_PASSWORD are blank.");
-                return;
-            }
-
-            if (mailSender instanceof org.springframework.mail.javamail.JavaMailSenderImpl) {
-                org.springframework.mail.javamail.JavaMailSenderImpl impl = (org.springframework.mail.javamail.JavaMailSenderImpl) mailSender;
-                
-                impl.setHost(rawSmtpHost != null ? rawSmtpHost.trim() : "://brevo.com");
-                impl.setPort(rawSmtpPort != null ? Integer.parseInt(rawSmtpPort.trim()) : 2525);
-                impl.setUsername(rawSmtpUsername.trim());
-                impl.setPassword(rawSmtpPassword.trim());
-                
-                java.util.Properties props = impl.getJavaMailProperties();
-                props.put("mail.smtp.auth", "true");
-                props.put("mail.smtp.starttls.enable", "true");
-                
-                log.info("[MAIL INITIALIZATION] Successfully bound uncorrupted environment strings to JavaMailSenderImpl instance.");
-            }
+        if (mailEnabled && (smtpUsername == null || smtpUsername.isBlank()
+                || smtpPassword == null || smtpPassword.isBlank())) {
+            log.error("app.mail.enabled=true but MAIL_USERNAME/MAIL_PASSWORD are blank — every "
+                + "borrower email (application received, approved, rejected, disbursed, document "
+                + "status, restructuring, etc.) will fail SMTP auth silently. Set real values via "
+                + "environment variables / your secrets manager, not this file.");
         }
     }
 
@@ -75,23 +65,6 @@ public class MailService {
             "<p><strong>Current Status:</strong> Submitted</p>" +
             "<p>You can track your application from your borrower dashboard.</p>" +
             "<p>Thank you.<br/>Loan Management System</p>"
-        );
-    }
-
-        @Async
-    public void sendOverdueReminder(Loan loan, Integer daysOverdue) {
-        if (!mailEnabled) { 
-            log.info("[EMAIL] Overdue reminder: {} ({} days)", loan.getReferenceNumber(), daysOverdue); 
-            return; 
-        }
-        String to = loan.getBorrower().getEmail();
-        if (to == null) return;
-        send(to, 
-            "URGENT: Payment Overdue Notice — " + loan.getReferenceNumber(),
-            "<h2>Payment Overdue Alert</h2>" +
-            "<p>Dear " + loan.getBorrower().getFullName() + ",</p>" +
-            "<p>Your loan <strong>" + loan.getReferenceNumber() + "</strong> is currently marked as <strong>OVERDUE</strong> by <strong>" + daysOverdue + " days</strong>.</p>" +
-            "<p>Please settle your outstanding balance immediately to avoid further penalization, legal escalation, or collection queue assignment.</p>"
         );
     }
 
