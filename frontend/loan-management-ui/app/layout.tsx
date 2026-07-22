@@ -5,9 +5,9 @@ export const metadata: Metadata = {
   title: 'Growth Finance Services Ltd — Loans & Financial Services',
   description: 'Growth Finance Services Ltd — licensed loan products, online applications, and secure account management for individuals, businesses, and farmers in Rwanda.',
   icons: {
-    icon: '/icon.svg',
-    shortcut: '/icon.svg',
-    apple: '/icon.svg',
+    icon: '/logo-mark.png',
+    shortcut: '/logo-mark.png',
+    apple: '/logo-mark.png',
   },
 };
 
