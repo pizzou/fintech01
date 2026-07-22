@@ -52,7 +52,7 @@ public class DataSeeder implements CommandLineRunner {
             seedCurrencyRates();
         }
 
-    // ===== ORGANIZATION 1: Growth Finance Services Ltd (Rwanda) =====
+    // ===== ORGANIZATION: Growth Finance Services Ltd (Rwanda) =====
     if (shouldSeed("growthfinance")) {
         Organization growth = orgRepo.save(Organization.builder()
             .name("Growth Finance Services Ltd").industry("Microfinance").country("RW")
@@ -76,7 +76,20 @@ public class DataSeeder implements CommandLineRunner {
             .subscribedAt(LocalDateTime.now()).subscriptionExpiresAt(LocalDateTime.now().plusYears(1))
             .build());
 
-        userRepo.save(makeUser("Eric Nshuti", "admin@growthfinance.rw", "Admin@1234", adminRole, growth));
+        // Admin credentials come from Render env vars (BOOTSTRAP_ADMIN_EMAIL,
+        // BOOTSTRAP_ADMIN_PASSWORD, BOOTSTRAP_ADMIN_NAME) when set — falling back to a
+        // demo default only if they're missing (e.g. local dev). This only runs on the very
+        // first startup against an empty database; if you've already seeded once with the
+        // old hardcoded admin@growthfinance.rw account, changing these env vars now won't
+        // retroactively update it — you'd need a fresh database for this to take effect.
+        String bootstrapAdminEmail    = System.getenv("BOOTSTRAP_ADMIN_EMAIL");
+        String bootstrapAdminPassword = System.getenv("BOOTSTRAP_ADMIN_PASSWORD");
+        String bootstrapAdminName     = System.getenv("BOOTSTRAP_ADMIN_NAME");
+        String adminEmail    = (bootstrapAdminEmail    != null && !bootstrapAdminEmail.isBlank())    ? bootstrapAdminEmail    : "admin@growthfinance.rw";
+        String adminPassword = (bootstrapAdminPassword != null && !bootstrapAdminPassword.isBlank()) ? bootstrapAdminPassword : "Admin@1234";
+        String adminName     = (bootstrapAdminName     != null && !bootstrapAdminName.isBlank())     ? bootstrapAdminName     : "Admin";
+
+        userRepo.save(makeUser(adminName, adminEmail, adminPassword, adminRole, growth));
         accountingService.ensureChartOfAccounts(growth);
         User growthOfficer = userRepo.save(makeUser("Diane Uwase", "officer@growthfinance.rw", "Officer@1234", officerRole, growth));
 
@@ -114,112 +127,6 @@ public class DataSeeder implements CommandLineRunner {
 
     } // end shouldSeed("growthfinance")
 
-        // ===== ORGANIZATION 2: Noble Loan Solutions (Rwanda) =====
-    if (shouldSeed("nobleloan")) {
-        Organization noble = orgRepo.save(Organization.builder()
-            .name("Noble Loan Solutions").industry("Microfinance").country("RW")
-            .defaultCurrency("RWF").timezone("Africa/Kigali").locale("en-RW")
-            .primaryColor("#1E3A8A").accentColor("#F59E0B")
-            .website("https://nobleloan.rw")
-            .contactEmail("info@nobleloan.rw").contactPhone("+250 788 111 222")
-            .address("KN 4 Ave, Kigali, Rwanda").registrationNumber("REG-NLS-005")
-            .tagline("Loans Built on Trust")
-            .mission("To deliver honest, fast and fairly-priced credit to working Rwandans and small business owners.")
-            .vision("To be the most dependable lending partner for every family and entrepreneur in Rwanda.")
-            .foundedYear(2019)
-            .facebookUrl("https://facebook.com/nobleloanrw").linkedinUrl("https://linkedin.com/company/nobleloanrw")
-            .twitterUrl("https://twitter.com/nobleloanrw").whatsappUrl("https://wa.me/250788111222")
-            .mapUrl("https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d63800.15641867!2d30.0589!3d-1.9491!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x19dca5d0e199999f%3A0x0!2sKigali!5e0!3m2!1sen!2srw!4v1690000000001")
-            .subscriptionTier(Organization.SubscriptionTier.PROFESSIONAL)
-            .status(Organization.OrgStatus.ACTIVE)
-            .maxUsers(100).maxActiveLoans(10000)
-            .minLoanAmount(20000.0).maxLoanAmount(25_000_000.0)
-            .subscribedAt(LocalDateTime.now()).subscriptionExpiresAt(LocalDateTime.now().plusYears(1))
-            .build());
-
-        userRepo.save(makeUser("Patrick Habimana", "admin@nobleloan.rw", "Admin@1234", adminRole, noble));
-        accountingService.ensureChartOfAccounts(noble);
-        User nobleOfficer = userRepo.save(makeUser("Grace Ingabire", "officer@nobleloan.rw", "Officer@1234", officerRole, noble));
-
-        Borrower emmanuel = borrowerRepo.save(Borrower.builder()
-            .organization(noble).firstName("Emmanuel").lastName("Ndayisenga")
-            .email("emmanuel.nday@gmail.com").phone("+250-788-222-001")
-            .nationalId("1198580034567890")
-            .dateOfBirth(LocalDate.of(1988, 1, 20)).gender("M").nationality("RW")
-            .employerName("MTN Rwanda").employmentType("PERMANENT").jobTitle("Sales Manager")
-            .monthlyIncome(520000.0).monthlyExpenses(200000.0).creditScore(740)
-            .city("Kigali").country("RW").kycStatus("VERIFIED")
-            .status(Borrower.BorrowerStatus.ACTIVE).build());
-
-        Borrower claudine = borrowerRepo.save(Borrower.builder()
-            .organization(noble).firstName("Claudine").lastName("Nyirahabimana")
-            .email("claudine.n@gmail.com").phone("+250-788-222-002")
-            .nationalId("1199080045678901")
-            .dateOfBirth(LocalDate.of(1995, 7, 8)).gender("F").nationality("RW")
-            .employerName("Self-employed").employmentType("SELF_EMPLOYED").jobTitle("Shop Owner")
-            .monthlyIncome(310000.0).monthlyExpenses(140000.0).creditScore(670)
-            .city("Musanze").country("RW").kycStatus("PENDING")
-            .status(Borrower.BorrowerStatus.ACTIVE).build());
-
-        seedLoan(noble, emmanuel, nobleOfficer, Loan.LoanType.BUSINESS,  3_000_000.0, "RWF", 24, LoanStatus.ACTIVE,  5);
-        seedLoan(noble, claudine, nobleOfficer, Loan.LoanType.PERSONAL,  800_000.0,   "RWF", 12, LoanStatus.UNDER_REVIEW, 0);
-
-        seedProduct(noble, "Personal Loan", "👤", Loan.LoanType.PERSONAL, 16.5, 30_000.0, 3_000_000.0, 3, 24,
-            "Simple, honest personal lending with fast turnaround.", 1);
-        seedProduct(noble, "Business Loan", "🏢", Loan.LoanType.BUSINESS, 13.0, 300_000.0, 20_000_000.0, 6, 48,
-            "Grow your business with flexible working capital.", 2);
-        seedProduct(noble, "Salary Advance", "💵", Loan.LoanType.SALARY_ADVANCE, 6.0, 20_000.0, 500_000.0, 1, 3,
-            "Quick advance on your monthly salary — approved same day.", 3);
-
-    } // end shouldSeed("nobleloan")
-
-        // ===== ORGANIZATION 3: Infinity Loan Solutions (Rwanda) =====
-    if (shouldSeed("infinityloan")) {
-        Organization infinity = orgRepo.save(Organization.builder()
-            .name("Infinity Loan Solutions").industry("Microfinance").country("RW")
-            .defaultCurrency("RWF").timezone("Africa/Kigali").locale("en-RW")
-            .primaryColor("#7C3AED").accentColor("#10B981")
-            .website("https://infinityloan.rw")
-            .contactEmail("info@infinityloan.rw").contactPhone("+250 788 333 444")
-            .address("KG 11 Ave, Kigali, Rwanda").registrationNumber("REG-ILS-006")
-            .tagline("Unlimited Possibilities, Real Support")
-            .mission("To open up simple, flexible financing for micro-entrepreneurs and farmers who are often overlooked by traditional banks.")
-            .vision("A Rwanda where every small business and farming household has fair access to capital.")
-            .foundedYear(2023)
-            .facebookUrl("https://facebook.com/infinityloanrw").instagramUrl("https://instagram.com/infinityloanrw")
-            .whatsappUrl("https://wa.me/250788333444")
-            .mapUrl("https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d63800.15641867!2d30.0719!3d-1.9581!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x19dca4d3a199999f%3A0x0!2sKigali!5e0!3m2!1sen!2srw!4v1690000000002")
-            .subscriptionTier(Organization.SubscriptionTier.STARTER)
-            .status(Organization.OrgStatus.TRIAL)
-            .maxUsers(50).maxActiveLoans(5000)
-            .minLoanAmount(15000.0).maxLoanAmount(15_000_000.0)
-            .subscribedAt(LocalDateTime.now()).subscriptionExpiresAt(LocalDateTime.now().plusMonths(3))
-            .build());
-
-        userRepo.save(makeUser("Alice Umutoni", "admin@infinityloan.rw", "Admin@1234", adminRole, infinity));
-        accountingService.ensureChartOfAccounts(infinity);
-        User infinityOfficer = userRepo.save(makeUser("Robert Mugisha", "officer@infinityloan.rw", "Officer@1234", officerRole, infinity));
-
-        Borrower samuel = borrowerRepo.save(Borrower.builder()
-            .organization(infinity).firstName("Samuel").lastName("Byiringiro")
-            .email("samuel.byi@gmail.com").phone("+250-788-333-001")
-            .nationalId("1199280056789012")
-            .dateOfBirth(LocalDate.of(1991, 11, 30)).gender("M").nationality("RW")
-            .employerName("Self-employed").employmentType("SELF_EMPLOYED").jobTitle("Farmer")
-            .monthlyIncome(220000.0).monthlyExpenses(90000.0).creditScore(600)
-            .city("Huye").country("RW").kycStatus("VERIFIED")
-            .status(Borrower.BorrowerStatus.ACTIVE).build());
-
-        seedLoan(infinity, samuel, infinityOfficer, Loan.LoanType.AGRICULTURAL, 1_200_000.0, "RWF", 18, LoanStatus.PENDING, 0);
-
-        seedProduct(infinity, "Agricultural Loan", "🌾", Loan.LoanType.AGRICULTURAL, 9.0, 100_000.0, 5_000_000.0, 6, 24,
-            "Seasonal farming and agribusiness finance for smallholder and commercial farmers.", 1);
-        seedProduct(infinity, "Microfinance Loan", "💡", Loan.LoanType.MICROFINANCE, 19.0, 30_000.0, 800_000.0, 3, 12,
-            "Accessible small loans for micro-entrepreneurs often overlooked by traditional banks.", 2);
-        seedProduct(infinity, "SME Finance", "📦", Loan.LoanType.BUSINESS, 14.0, 500_000.0, 15_000_000.0, 6, 36,
-            "Tailored finance for small and growing Rwandan businesses.", 3);
-    } // end shouldSeed("infinityloan")
-
         try {
             int cases = collectionsService.syncCasesFromOverdueLoans();
             log.info("Seeded {} collection case(s) from overdue/defaulted demo loans", cases);
@@ -232,16 +139,8 @@ public class DataSeeder implements CommandLineRunner {
         log.info("║          LOANSAAS PRO — DEMO DATA SEEDED                    ║");
         log.info("╠══════════════════════════════════════════════════════════════╣");
         if (shouldSeed("growthfinance")) {
-            log.info("║  Growth Finance: admin@growthfinance.rw / Admin@1234        ║");
+            log.info("║  Growth Finance admin login — see BOOTSTRAP_ADMIN_EMAIL      ║");
             log.info("║                  officer@growthfinance.rw / Officer@1234    ║");
-        }
-        if (shouldSeed("nobleloan")) {
-            log.info("║  Noble Loan:     admin@nobleloan.rw     / Admin@1234        ║");
-            log.info("║                  officer@nobleloan.rw   / Officer@1234      ║");
-        }
-        if (shouldSeed("infinityloan")) {
-            log.info("║  Infinity Loan:  admin@infinityloan.rw  / Admin@1234        ║");
-            log.info("║                  officer@infinityloan.rw / Officer@1234     ║");
         }
         log.info("╠══════════════════════════════════════════════════════════════╣");
         log.info("║  Swagger UI: http://localhost:8080/swagger-ui.html          ║");
@@ -254,7 +153,7 @@ public class DataSeeder implements CommandLineRunner {
      * deployment (see docker-compose.yml), each backend has SEED_ORG set to
      * its own slug, so it only ever seeds (and only ever holds) that one
      * org's data in its own database. Unset (e.g. local dev against one
-     * shared database) seeds all three, matching the original demo setup.
+     * shared database) seeds all configured orgs, matching the original demo setup.
      */
     private boolean shouldSeed(String slug) {
         String target = System.getenv("SEED_ORG");
