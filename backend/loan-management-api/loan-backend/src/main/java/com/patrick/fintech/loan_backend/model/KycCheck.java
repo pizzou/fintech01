@@ -1,40 +1,260 @@
 package com.patrick.fintech.loan_backend.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
-@JsonIgnoreProperties({"hibernateLazyInitializer","handler"})
-@Entity @Table(name="kyc_checks")
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@Entity
+@Table(name = "kyc_checks")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class KycCheck {
-    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) 
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /*
+     * Borrower
+     */
     @JsonIgnore
-    @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="borrower_id",nullable=false) 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "borrower_id", nullable = false)
     private Borrower borrower;
 
-
+    /*
+     * Organization
+     */
     @JsonIgnore
-    @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="organization_id",nullable=false) private Organization organization;
-    @Enumerated(EnumType.STRING) private CheckType checkType;
-    @Enumerated(EnumType.STRING) private CheckResult result;
-    private Double matchScore;
-    @Column(columnDefinition="TEXT") private String rawResponse;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id", nullable = false)
+    private Organization organization;
+
+    /*
+     * KYC Type
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private CheckType checkType;
+
+    /*
+     * Result
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private CheckResult result;
+
+    /*
+     * Overall Risk
+     */
+    @Enumerated(EnumType.STRING)
+    private RiskLevel riskLevel;
+
+    /*
+     * Provider
+     * SumSub
+     * Smile Identity
+     * Veriff
+     * Onfido
+     * Trulioo
+     * Internal
+     */
     private String provider;
+
+    /*
+     * Provider transaction id
+     */
+    private String providerReference;
+
+    /*
+     * Confidence score
+     */
+    private Double matchScore;
+
+    /*
+     * National ID number verified?
+     */
+    private Boolean idVerified;
+
+    /*
+     * Face matched?
+     */
+    private Boolean faceMatched;
+
+    /*
+     * Liveness detection
+     */
+    private Boolean livenessPassed;
+
+    /*
+     * Address verified?
+     */
+    private Boolean addressVerified;
+
+    /*
+     * PEP Result
+     */
+    private Boolean pepMatch;
+
+    /*
+     * Sanctions Result
+     */
+    private Boolean sanctionsMatch;
+
+    /*
+     * Adverse media result
+     */
+    private Boolean adverseMediaMatch;
+
+    /*
+     * Duplicate customer?
+     */
+    private Boolean duplicateCustomer;
+
+    /*
+     * Fraud suspected?
+     */
+    private Boolean fraudDetected;
+
+    /*
+     * AML Risk Score
+     */
+    private Integer amlRiskScore;
+
+    /*
+     * Notes
+     */
+    @Column(length = 2000)
     private String notes;
+
+    /*
+     * Raw provider JSON
+     */
+    @Lob
+    private String rawResponse;
+
+    /*
+     * Reviewed by compliance officer
+     */
     private String reviewedBy;
+
+    /*
+     * Manual decision
+     */
+    @Enumerated(EnumType.STRING)
+    private ManualDecision manualDecision;
+
+    /*
+     * When reviewed
+     */
     private LocalDateTime reviewedAt;
-    private LocalDateTime createdAt;
+
+    /*
+     * Expiry
+     */
     private LocalDateTime expiresAt;
-    @PrePersist protected void onCreate() {
-        createdAt=LocalDateTime.now();
-        if(expiresAt==null) expiresAt=createdAt.plusMonths(12);
-        if(result==null) result=CheckResult.PENDING;
+
+    /*
+     * Audit
+     */
+    private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+
+        if (result == null)
+            result = CheckResult.PENDING;
+
+        if (riskLevel == null)
+            riskLevel = RiskLevel.UNKNOWN;
+
+        if (expiresAt == null)
+            expiresAt = createdAt.plusYears(1);
     }
-    public boolean isExpired(){ return expiresAt!=null&&expiresAt.isBefore(LocalDateTime.now()); }
-    public enum CheckType  { IDENTITY_VERIFICATION,SANCTIONS_SCREENING,PEP_SCREENING,ADDRESS_VERIFICATION,DOCUMENT_VERIFICATION }
-    public enum CheckResult{ PENDING,CLEAR,FLAGGED,REJECTED,MANUAL_REVIEW }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
+    public boolean isExpired() {
+        return expiresAt != null &&
+                expiresAt.isBefore(LocalDateTime.now());
+    }
+
+    /*
+     * Types
+     */
+
+    public enum CheckType {
+
+        IDENTITY_VERIFICATION,
+
+        DOCUMENT_VERIFICATION,
+
+        FACE_MATCH,
+
+        LIVENESS_CHECK,
+
+        ADDRESS_VERIFICATION,
+
+        SANCTIONS_SCREENING,
+
+        PEP_SCREENING,
+
+        ADVERSE_MEDIA,
+
+        AML_SCREENING,
+
+        PHONE_VERIFICATION,
+
+        EMAIL_VERIFICATION,
+
+        TAX_VERIFICATION
+    }
+
+    public enum CheckResult {
+
+    PENDING,
+    CLEAR,
+    FLAGGED,
+    REJECTED,
+    MANUAL_REVIEW
+    }
+
+    public enum RiskLevel {
+
+        LOW,
+
+        MEDIUM,
+
+        HIGH,
+
+        CRITICAL,
+
+        UNKNOWN
+    }
+
+    public enum ManualDecision {
+
+        APPROVED,
+
+        REJECTED,
+
+        ESCALATED,
+
+        NONE
+    }
+
 }
