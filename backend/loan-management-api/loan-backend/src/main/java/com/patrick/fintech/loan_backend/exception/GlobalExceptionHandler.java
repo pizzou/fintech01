@@ -61,6 +61,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(error("File is too large for the server to accept. Please upload a smaller file.", null));
     }
 
+    // A request that should have been multipart/form-data arrived without the expected
+    // "file" part (e.g. a client sent it as JSON instead of real multipart). Previously
+    // this fell through to the generic 500 handler below and surfaced as an opaque
+    // "Internal server error" with no indication the problem was the upload itself.
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
+    public ResponseEntity<Map<String,Object>> handleMissingPart(org.springframework.web.multipart.support.MissingServletRequestPartException ex) {
+        log.warn("Upload rejected — missing part '{}': request was not sent as multipart/form-data", ex.getRequestPartName());
+        return ResponseEntity.badRequest().body(error("No file was received. Please try uploading again.", null));
+    }
+
+    @ExceptionHandler(java.io.IOException.class)
+    public ResponseEntity<Map<String,Object>> handleIO(java.io.IOException ex) {
+        log.warn("Upload I/O failure: {}", ex.getMessage());
+        return ResponseEntity.badRequest().body(error("We couldn't process that file. Please try again.", null));
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String,Object>> handleRuntime(RuntimeException ex) {
         log.warn("Business error: {}", ex.getMessage());

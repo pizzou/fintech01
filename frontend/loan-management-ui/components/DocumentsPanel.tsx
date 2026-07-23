@@ -233,7 +233,7 @@ export default function DocumentsPanel({ borrowerId }: { borrowerId: number }) {
 
       <div className="px-6 py-3 bg-gray-50 border-t border-gray-100">
         <p className="text-xs text-gray-400">
-          Accepted: PDF, JPG, PNG, Word, Excel. Max 10MB per file.
+          Accepted: PDF, JPG, PNG, WEBP. Max 8MB per file.
         </p>
       </div>
     </div>
