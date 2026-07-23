@@ -34,7 +34,6 @@ public class LoanController {
         User user = currentUserUtil.getCurrentUser();
         Loan loan = loanService.createLoan(req, user.getOrganization().getId(), user);
         loanApprovalService.initiateChain(loan); // sets up the maker-checker steps this loan's size requires
-        try { mailService.sendApplicationReceived(loan); } catch (Exception e) { /* best-effort, never blocks loan creation */ }
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Loan created", loan));
     }
 
@@ -52,15 +51,6 @@ public class LoanController {
     public ResponseEntity<ApiResponse<Loan>> getLoan(@PathVariable Long id) {
         Long orgId = currentUserUtil.getCurrentOrganizationId();
         return ResponseEntity.ok(ApiResponse.ok(loanService.getLoanForOrg(id, orgId)));
-    }
-
-    /** Required-documents checklist for this loan — required/missing/unverified, plus whether it's
-     *  currently eligible to be approved or disbursed. Lets the UI warn before the officer hits the
-     *  same check the server enforces in approveLoan/disburseLoan. */
-    @GetMapping("/{id}/document-requirements")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getDocumentRequirements(@PathVariable Long id) {
-        Long orgId = currentUserUtil.getCurrentOrganizationId();
-        return ResponseEntity.ok(ApiResponse.ok(loanService.getDocumentRequirements(id, orgId)));
     }
 
     @GetMapping("/{id}/schedule")
