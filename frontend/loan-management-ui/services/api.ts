@@ -3,15 +3,7 @@ import axios from 'axios';
 const API = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api',
   timeout: 20000,
-  // NOTE: no default Content-Type here on purpose. Axios sets 'application/json'
-  // automatically for plain object payloads. If a hardcoded 'application/json'
-  // header is set here at the instance level, axios sees it on EVERY request
-  // (including file uploads that send a FormData body) and — because the header
-  // already says JSON — it JSON.stringifies the FormData instead of sending it as
-  // real multipart/form-data. The backend then never receives an actual file part,
-  // throws MissingServletRequestPartException, and that falls through to the
-  // generic 500 "Internal server error" handler. This is what broke document
-  // uploads (both the public application flow and the staff dashboard).
+  headers: { 'Content-Type': 'application/json' },
 });
 
 API.interceptors.request.use((config) => {
@@ -204,6 +196,7 @@ export const publicApi = {
     return API.post(
       `/public/applications/${encodeURIComponent(reference.trim())}/documents`,
       form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
     ).then(r => (r.data as any)?.data ?? r.data);
   },
 };

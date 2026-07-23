@@ -26,21 +26,21 @@ export default function DocumentsPanel({ borrowerId }: { borrowerId: number }) {
   useEffect(() => { load().catch(console.error).finally(() => setLoading(false)); }, [load]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  if (file.size > 8 * 1024 * 1024) { toast('error', 'File must be under 8MB'); return; }
-  setUploading(true);
-  try {
-    await uploadFile(borrowerId, file);
-    toast('success', file.name + ' uploaded');
-    await load();
-  } catch (err: unknown) {
-    toast('error', getMsg(err));
-  } finally {
-    setUploading(false);
-    e.target.value = '';
-  }
-};
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast('error', 'File must be under 10MB'); return; }
+    setUploading(true);
+    try {
+      await uploadFile(borrowerId, file);
+      toast('success', file.name + ' uploaded');
+      await load();
+    } catch (err: unknown) {
+      toast('error', getMsg(err));
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
 
   const handleDelete = async (fileId: number, fileName: string) => {
     if (!confirm('Delete ' + fileName + '?')) return;
@@ -97,12 +97,12 @@ export default function DocumentsPanel({ borrowerId }: { borrowerId: number }) {
         >
           {uploading ? 'Uploading...' : '+ Upload File'}
           <input
-  type="file"
-  className="hidden"
-  onChange={handleUpload}
-  disabled={uploading}
-  accept=".pdf,.jpg,.jpeg,.png,.webp"
-/>
+            type="file"
+            className="hidden"
+            onChange={handleUpload}
+            disabled={uploading}
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+          />
         </label>
       </div>
 
@@ -233,7 +233,7 @@ export default function DocumentsPanel({ borrowerId }: { borrowerId: number }) {
 
       <div className="px-6 py-3 bg-gray-50 border-t border-gray-100">
         <p className="text-xs text-gray-400">
-          Accepted: PDF, JPG, PNG, WEBP. Max 8MB per file.
+          Accepted: PDF, JPG, PNG, Word, Excel. Max 10MB per file.
         </p>
       </div>
     </div>

@@ -36,47 +36,18 @@ public class LoanService {
 
     /** Used when a loan's product has no requiredDocumentTypes configured (see V23 migration) —
      *  every loan needs at least proof of identity and address on file before it can move. */
-      private static final List<DocumentType> DEFAULT_REQUIRED_DOCS = List.of(
-            DocumentType.NATIONAL_ID,
-            DocumentType.SELFIE,
-            DocumentType.PROOF_OF_ADDRESS
-    );
+    public static final List<String> DEFAULT_REQUIRED_DOCS = List.of("NATIONAL_ID", "PROOF_OF_ADDRESS");
 
     /** Resolves which document types this specific loan needs: the product's configured list
      *  if one exists, otherwise the baseline. Product lookup mirrors createLoan's own lookup,
      *  so "which product governs this loan" stays defined in exactly one place. */
-    private List<DocumentType> requiredDocsFor(Loan loan) {
-
-    LoanProduct product = loanProductRepo
-            .findFirstByOrganization_IdAndLoanTypeAndActiveTrue(
-                    loan.getOrganization().getId(),
-                    loan.getLoanType())
+    private List<String> requiredDocsFor(Loan loan) {
+        LoanProduct product = loanProductRepo
+            .findFirstByOrganization_IdAndLoanTypeAndActiveTrue(loan.getOrganization().getId(), loan.getLoanType())
             .orElse(null);
-
-    if (product == null) {
-        return DEFAULT_REQUIRED_DOCS;
+        List<String> configured = product != null ? product.getRequiredDocumentTypesList() : null;
+        return configured != null ? configured : DEFAULT_REQUIRED_DOCS;
     }
-
-    List<String> configured = product.getRequiredDocumentTypesList();
-
-    if (configured == null || configured.isEmpty()) {
-        return DEFAULT_REQUIRED_DOCS;
-    }
-
-    List<DocumentType> documentTypes = new ArrayList<>();
-
-    for (String type : configured) {
-        try {
-            documentTypes.add(DocumentType.valueOf(type.trim().toUpperCase()));
-        } catch (IllegalArgumentException ex) {
-            throw new RuntimeException(
-                    "Invalid document type configured for Loan Product: " + type
-            );
-        }
-    }
-
-    return documentTypes;
-}
 
     // Annual rates by loan type
     private static final Map<Loan.LoanType, Double> BASE_RATES = Map.ofEntries(
@@ -205,19 +176,14 @@ public class LoanService {
                 + " — it has no borrower record linked. This indicates a data problem; fix the "
                 + "borrower link before this loan can proceed.");
         }
-        List<DocumentType> missingDocs = fileService.getMissingDocumentTypes(
-        loan.getBorrower().getId(),
-        requiredDocsFor(loan));
+        List<String> missingDocs = fileService.getMissingDocumentTypes(
+            loan.getBorrower().getId(), requiredDocsFor(loan));
+        if (!missingDocs.isEmpty()) {
+            throw new RuntimeException("Cannot approve this loan — the borrower hasn't uploaded: "
+                + String.join(", ", missingDocs) + ". Upload these documents first, or override the "
+                + "product's document requirements if they genuinely don't apply.");
+        }
 
-if (!missingDocs.isEmpty()) {
-    throw new RuntimeException(
-        "Cannot approve this loan — the borrower hasn't uploaded: "
-        + missingDocs.stream()
-                     .map(DocumentType::name)
-                     .collect(java.util.stream.Collectors.joining(", "))
-        + ". Upload these documents first, or override the product's document requirements if they genuinely don't apply."
-    );
-}
         loan.setStatus(LoanStatus.APPROVED);
         loan.setApprovedBy(approvedBy);
         loan.setApprovedAt(LocalDate.now());
@@ -274,19 +240,12 @@ if (!missingDocs.isEmpty()) {
                 + " — it has no borrower record linked. This indicates a data problem; fix the "
                 + "borrower link before funds can be released.");
         }
-       List<DocumentType> unverifiedDocs = fileService.getUnverifiedDocumentTypes(
-        loan.getBorrower().getId(),
-        requiredDocsFor(loan));
-
-if (!unverifiedDocs.isEmpty()) {
-    throw new RuntimeException(
-            "Cannot disburse this loan — staff still needs to verify: "
-            + unverifiedDocs.stream()
-                    .map(DocumentType::name)
-                    .collect(java.util.stream.Collectors.joining(", "))
-            + " in the Documents tab before funds can be released."
-    );
-}
+        List<String> unverifiedDocs = fileService.getUnverifiedDocumentTypes(
+            loan.getBorrower().getId(), requiredDocsFor(loan));
+        if (!unverifiedDocs.isEmpty()) {
+            throw new RuntimeException("Cannot disburse this loan — staff still needs to verify: "
+                + String.join(", ", unverifiedDocs) + " in the Documents tab before funds can be released.");
+        }
         loan.setStatus(LoanStatus.ACTIVE);
         loan.setDisbursedAt(LocalDate.now());
         loan.setDisbursedAmount(loan.getAmount());
@@ -383,41 +342,15 @@ if (!unverifiedDocs.isEmpty()) {
             result.put("noBorrowerLinked", true);
             return result;
         }
-        List<DocumentType> required = requiredDocsFor(loan);
-
-List<DocumentType> missing =
-        fileService.getMissingDocumentTypes(
-                loan.getBorrower().getId(),
-                required);
-
-List<DocumentType> unverified =
-        fileService.getUnverifiedDocumentTypes(
-                loan.getBorrower().getId(),
-                required);
-
-// Convert enums to readable strings for the API response
-result.put(
-        "required",
-        required.stream()
-                .map(DocumentType::name)
-                .toList());
-
-result.put(
-        "missing",
-        missing.stream()
-                .map(DocumentType::name)
-                .toList());
-
-result.put(
-        "unverified",
-        unverified.stream()
-                .map(DocumentType::name)
-                .toList());
-
-result.put("readyToApprove", missing.isEmpty());
-result.put("readyToDisburse", unverified.isEmpty());
-
-return result;
+        List<String> required   = requiredDocsFor(loan);
+        List<String> missing    = fileService.getMissingDocumentTypes(loan.getBorrower().getId(), required);
+        List<String> unverified = fileService.getUnverifiedDocumentTypes(loan.getBorrower().getId(), required);
+        result.put("required", required);
+        result.put("missing", missing);
+        result.put("unverified", unverified);
+        result.put("readyToApprove", missing.isEmpty());
+        result.put("readyToDisburse", unverified.isEmpty());
+        return result;
     }
 
     public DashboardStats getDashboard(Organization org) {

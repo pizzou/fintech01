@@ -114,7 +114,7 @@ public class PublicController {
      * tracking page if something was missed. Same phone-match ownership check
      * as tracking; no session/login involved.
      */
-   @PostMapping("/applications/{reference}/documents")
+    @PostMapping("/applications/{reference}/documents")
     @Transactional
     public ResponseEntity<ApiResponse<Map<String,Object>>> uploadApplicationDocument(
             @PathVariable String reference,
@@ -122,18 +122,13 @@ public class PublicController {
             @RequestParam String documentType,
             @RequestParam("file") org.springframework.web.multipart.MultipartFile file) throws Exception {
         Loan loan = verifyOwnership(reference, phone);
-
-        DocumentType docType;
-        try {
-            docType = DocumentType.valueOf(documentType.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
+        if (!BorrowerFileService.DOCUMENT_TYPES.contains(documentType)) {
             throw new RuntimeException("Unknown document type.");
         }
-
-        var saved = fileService.upload(loan.getBorrower().getId(), file, docType, true);
+        var saved = fileService.upload(loan.getBorrower().getId(), file, documentType, true);
         auditService.log(loan.getBorrower().getOrganization(), null, "APPLICANT_DOCUMENT_UPLOADED",
             "BORROWER_FILE", saved.getId().toString(),
-            docType + " uploaded by applicant for application " + loan.getReferenceNumber());
+            documentType + " uploaded by applicant for application " + loan.getReferenceNumber());
 
         Map<String,Object> result = new LinkedHashMap<>();
         result.put("id", saved.getId());
@@ -189,10 +184,10 @@ public class PublicController {
             throw new RuntimeException("Document not found.");
         if (!file.isUploadedByApplicant())
             throw new RuntimeException("This document was added by our staff and can't be removed here — contact us if it needs changing.");
-        if (file.getVerificationStatus() == VerificationStatus.VERIFIED)
+        if ("VERIFIED".equals(file.getVerificationStatus()))
             throw new RuntimeException("This document has already been verified and can no longer be removed. Contact us if it needs to be replaced.");
 
-        DocumentType documentType = file.getDocumentType();
+        String documentType = file.getDocumentType();
         String fileName = file.getFileName();
         fileService.delete(fileId);
 

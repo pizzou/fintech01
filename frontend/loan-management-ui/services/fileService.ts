@@ -16,8 +16,9 @@ export const uploadFile = (borrowerId: number, file: File, documentType = 'OTHER
   const form = new FormData();
   form.append('file', file);
   form.append('documentType', documentType);
-  return API.post(`/files/upload/${borrowerId}`, form)
-    .then(r => unwrap(r.data) as BorrowerFile);
+  return API.post(`/files/upload/${borrowerId}`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => unwrap(r.data) as BorrowerFile);
 };
 
 export const deleteFile = (fileId: number): Promise<void> =>
