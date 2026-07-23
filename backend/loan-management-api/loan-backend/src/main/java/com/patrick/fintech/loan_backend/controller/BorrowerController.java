@@ -4,7 +4,6 @@ import com.patrick.fintech.loan_backend.dto.*;
 import com.patrick.fintech.loan_backend.model.*;
 import com.patrick.fintech.loan_backend.repository.BorrowerRepository;
 import com.patrick.fintech.loan_backend.service.AuditService;
-import com.patrick.fintech.loan_backend.service.MailService;
 import com.patrick.fintech.loan_backend.util.CurrentUserUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +20,6 @@ public class BorrowerController {
     private final BorrowerRepository borrowerRepo;
     private final CurrentUserUtil    currentUserUtil;
     private final AuditService       auditService;
-    private final MailService        mailService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<Page<Borrower>>> list(
@@ -49,34 +47,8 @@ public class BorrowerController {
     @PostMapping
     public ResponseEntity<ApiResponse<Borrower>> create(@Valid @RequestBody BorrowerRequest req) {
         Organization org = currentUserUtil.getCurrentUser().getOrganization();
-
-        // Check email, phone, and national ID for an existing match — previously only email
-        // was checked, and even then it just threw a dead-end error. If this is genuinely the
-        // same person (e.g. they already applied via the public website), staff need a path
-        // forward: view that existing profile and add a new loan there, not a wall.
-        if (req.getEmail() != null && !req.getEmail().isBlank()) {
-            var existing = borrowerRepo.findByEmailAndOrganization_Id(req.getEmail(), org.getId());
-            if (existing.isPresent())
-                throw new com.patrick.fintech.loan_backend.exception.DuplicateBorrowerException(
-                    "A borrower with this email already exists: " + existing.get().getFirstName() + " " + existing.get().getLastName(),
-                    existing.get(), "email");
-        }
-        if (req.getPhone() != null && !req.getPhone().isBlank()) {
-            var existing = borrowerRepo.findByPhoneHashAndOrganization_Id(
-                com.patrick.fintech.loan_backend.security.HmacIndexer.index(req.getPhone()), org.getId());
-            if (existing.isPresent())
-                throw new com.patrick.fintech.loan_backend.exception.DuplicateBorrowerException(
-                    "A borrower with this phone number already exists: " + existing.get().getFirstName() + " " + existing.get().getLastName(),
-                    existing.get(), "phone number");
-        }
-        if (req.getNationalId() != null && !req.getNationalId().isBlank()) {
-            var existing = borrowerRepo.findByNationalIdHashAndOrganization_Id(
-                com.patrick.fintech.loan_backend.security.HmacIndexer.index(req.getNationalId()), org.getId());
-            if (existing.isPresent())
-                throw new com.patrick.fintech.loan_backend.exception.DuplicateBorrowerException(
-                    "A borrower with this national ID already exists: " + existing.get().getFirstName() + " " + existing.get().getLastName(),
-                    existing.get(), "national ID");
-        }
+        if (req.getEmail() != null && borrowerRepo.existsByEmailAndOrganization(req.getEmail(), org))
+            throw new RuntimeException("Email already registered: " + req.getEmail());
 
         Borrower b = Borrower.builder()
             .organization(org)
@@ -101,53 +73,8 @@ public class BorrowerController {
         Borrower saved = borrowerRepo.save(b);
         auditService.log(org, currentUserUtil.getCurrentUser(), "BORROWER_CREATED", "BORROWER",
             String.valueOf(saved.getId()), "Created borrower " + saved.getFirstName() + " " + saved.getLastName());
-        try { mailService.sendBorrowerWelcome(saved); } catch (Exception e) { /* best-effort, never blocks borrower creation */ }
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.ok("Borrower created", saved));
-    }
-
-    @PostMapping("/{id}/blacklist")
-    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','MANAGER','AUDITOR')")
-    public ResponseEntity<ApiResponse<Borrower>> blacklist(@PathVariable Long id, @RequestBody java.util.Map<String, String> body) {
-        Organization org = currentUserUtil.getCurrentUser().getOrganization();
-        Borrower borrower = borrowerRepo.findById(id)
-            .filter(b -> b.getOrganization().getId().equals(org.getId()))
-            .orElseThrow(() -> new RuntimeException("Borrower not found"));
-
-        String reason = body.get("reason");
-        if (reason == null || reason.isBlank())
-            throw new RuntimeException("A reason is required to blacklist a borrower");
-
-        borrower.setStatus(Borrower.BorrowerStatus.BLACKLISTED);
-        borrower.setBlacklistReason(reason);
-        borrower.setBlacklistedAt(java.time.LocalDateTime.now());
-        borrower.setBlacklistedBy(currentUserUtil.getCurrentUser());
-        borrowerRepo.save(borrower);
-
-        auditService.log(org, currentUserUtil.getCurrentUser(), "BORROWER_BLACKLISTED", "BORROWER",
-            String.valueOf(borrower.getId()), "Blacklisted: " + reason, null, null, "Borrower Management");
-
-        return ResponseEntity.ok(ApiResponse.ok(borrower));
-    }
-
-    @PostMapping("/{id}/unblacklist")
-    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
-    public ResponseEntity<ApiResponse<Borrower>> unblacklist(@PathVariable Long id) {
-        Organization org = currentUserUtil.getCurrentUser().getOrganization();
-        Borrower borrower = borrowerRepo.findById(id)
-            .filter(b -> b.getOrganization().getId().equals(org.getId()))
-            .orElseThrow(() -> new RuntimeException("Borrower not found"));
-
-        borrower.setStatus(Borrower.BorrowerStatus.ACTIVE);
-        borrower.setBlacklistReason(null);
-        borrower.setBlacklistedAt(null);
-        borrower.setBlacklistedBy(null);
-        borrowerRepo.save(borrower);
-
-        auditService.log(org, currentUserUtil.getCurrentUser(), "BORROWER_UNBLACKLISTED", "BORROWER",
-            String.valueOf(borrower.getId()), "Removed from blacklist", null, null, "Borrower Management");
-
-        return ResponseEntity.ok(ApiResponse.ok(borrower));
     }
 
     @PutMapping("/{id}")
