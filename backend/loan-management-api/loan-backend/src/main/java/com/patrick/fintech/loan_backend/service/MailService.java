@@ -3,28 +3,43 @@ package com.patrick.fintech.loan_backend.service;
 import com.patrick.fintech.loan_backend.model.Borrower;
 import com.patrick.fintech.loan_backend.model.Loan;
 import com.patrick.fintech.loan_backend.model.User;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value; //  CORRECT
-
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import jakarta.mail.internet.MimeMessage;
+import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Sends email via Brevo's HTTP API instead of raw SMTP.
+ *
+ * Render's free-tier services block outbound SMTP ports (25/465/587) entirely,
+ * so this uses an HTTP API call (port 443, never blocked) instead.
+ *
+ * Uses Brevo (not SendGrid) specifically because it's a separate company from
+ * Twilio — no shared login/account-linking conflicts if you already have a
+ * Twilio account for SMS. Supports single-sender verification without owning
+ * a domain: verify one email address you control, then send to any recipient.
+ */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class MailService {
 
-    private final JavaMailSender mailSender;
+    private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${app.mail.enabled:false}")
     private boolean mailEnabled;
 
-    @Value("${app.mail.from:pmpumuropizzou@gmail.com}")
+    @Value("${app.mail.from:}")
     private String from;
+
+    @Value("${app.mail.brevo-api-key:}")
+    private String brevoApiKey;
+
+    private static final String BREVO_URL = "https://api.brevo.com/v3/smtp/email";
 
     @Async
     public void sendApplicationReceived(Loan loan) {
@@ -171,14 +186,14 @@ public class MailService {
             "<p>If you did not request a password reset, please ignore this email.</p>");
     }
 
-        @Async
+    @Async
     public void sendBorrowerWelcome(Borrower borrower) {
-        if (!mailEnabled) { 
-            log.info("[EMAIL] Borrower profile created: {}", borrower.getEmail()); 
-            return; 
+        if (!mailEnabled) {
+            log.info("[EMAIL] Borrower profile created: {}", borrower.getEmail());
+            return;
         }
         if (borrower.getEmail() == null) return;
-        send(borrower.getEmail(), 
+        send(borrower.getEmail(),
             "Your Profile Has Been Created",
             "<h2>Welcome</h2>" +
             "<p>Dear " + borrower.getFullName() + ",</p>" +
@@ -189,12 +204,12 @@ public class MailService {
 
     @Async
     public void sendDocumentVerified(Borrower borrower, String documentType) {
-        if (!mailEnabled) { 
-            log.info("[EMAIL] Document verified: {} for {}", documentType, borrower.getEmail()); 
-            return; 
+        if (!mailEnabled) {
+            log.info("[EMAIL] Document verified: {} for {}", documentType, borrower.getEmail());
+            return;
         }
         if (borrower.getEmail() == null) return;
-        send(borrower.getEmail(), 
+        send(borrower.getEmail(),
             "Document Verified: " + humanizeDocType(documentType),
             "<h2>Document Verified</h2>" +
             "<p>Dear " + borrower.getFullName() + ",</p>" +
@@ -205,12 +220,12 @@ public class MailService {
 
     @Async
     public void sendDocumentRejected(Borrower borrower, String documentType, String reason) {
-        if (!mailEnabled) { 
-            log.info("[EMAIL] Document rejected: {} for {}", documentType, borrower.getEmail()); 
-            return; 
+        if (!mailEnabled) {
+            log.info("[EMAIL] Document rejected: {} for {}", documentType, borrower.getEmail());
+            return;
         }
         if (borrower.getEmail() == null) return;
-        send(borrower.getEmail(), 
+        send(borrower.getEmail(),
             "Action Needed: " + humanizeDocType(documentType) + " Rejected",
             "<h2>Document Rejected</h2>" +
             "<p>Dear " + borrower.getFullName() + ",</p>" +
@@ -222,12 +237,12 @@ public class MailService {
 
     @Async
     public void sendDocumentReplacementRequested(Borrower borrower, String documentType, String note) {
-        if (!mailEnabled) { 
-            log.info("[EMAIL] Document replacement requested: {} for {}", documentType, borrower.getEmail()); 
-            return; 
+        if (!mailEnabled) {
+            log.info("[EMAIL] Document replacement requested: {} for {}", documentType, borrower.getEmail());
+            return;
         }
         if (borrower.getEmail() == null) return;
-        send(borrower.getEmail(), 
+        send(borrower.getEmail(),
             "Please Re-upload: " + humanizeDocType(documentType),
             "<h2>Replacement Document Requested</h2>" +
             "<p>Dear " + borrower.getFullName() + ",</p>" +
@@ -239,13 +254,13 @@ public class MailService {
 
     @Async
     public void sendOverdueReminder(Loan loan, Integer daysOverdue) {
-        if (!mailEnabled) { 
-            log.info("[EMAIL] Overdue reminder: {} ({} days)", loan.getReferenceNumber(), daysOverdue); 
-            return; 
+        if (!mailEnabled) {
+            log.info("[EMAIL] Overdue reminder: {} ({} days)", loan.getReferenceNumber(), daysOverdue);
+            return;
         }
         String to = loan.getBorrower().getEmail();
         if (to == null) return;
-        send(to, 
+        send(to,
             "URGENT: Payment Overdue Notice — " + loan.getReferenceNumber(),
             "<h2>Payment Overdue Alert</h2>" +
             "<p>Dear " + loan.getBorrower().getFullName() + ",</p>" +
@@ -264,15 +279,29 @@ public class MailService {
         return sb.toString().trim();
     }
 
+    /** Sends via Brevo's HTTP API (port 443 — not blocked, unlike raw SMTP on Render). */
     private void send(String to, String subject, String html) {
+        if (brevoApiKey == null || brevoApiKey.isBlank()) {
+            log.warn("Email send skipped — BREVO_API_KEY is not set. Would have sent to {}: {}", to, subject);
+            return;
+        }
+        if (from == null || from.isBlank()) {
+            log.warn("Email send skipped — MAIL_FROM is not set to your verified Brevo sender address. Would have sent to {}: {}", to, subject);
+            return;
+        }
         try {
-            MimeMessage msg = mailSender.createMimeMessage();
-            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
-            h.setFrom(from);
-            h.setTo(to);
-            h.setSubject(subject);
-            h.setText(html, true);
-            mailSender.send(msg);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("api-key", brevoApiKey);
+
+            Map<String, Object> payload = Map.of(
+                "sender", Map.of("email", from),
+                "to", List.of(Map.of("email", to)),
+                "subject", subject,
+                "htmlContent", html
+            );
+
+            restTemplate.exchange(BREVO_URL, HttpMethod.POST, new HttpEntity<>(payload, headers), String.class);
         } catch (Exception e) {
             log.warn("Email send failed to {}: {}", to, e.getMessage());
         }
