@@ -17,7 +17,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/collections")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN','MANAGER','LOAN_OFFICER','ACCOUNTANT')")
+@PreAuthorize("hasAnyRole('ADMIN','MANAGER','LOAN_OFFICER','ACCOUNTANT','COLLECTIONS_OFFICER')")
 public class CollectionsController {
 
     private final CollectionsService collectionsService;

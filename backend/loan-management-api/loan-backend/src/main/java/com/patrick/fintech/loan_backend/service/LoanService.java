@@ -32,6 +32,7 @@ public class LoanService {
     private final LoanProductRepository loanProductRepo;
     private final AccountingService    accountingService;
     private final BorrowerFileService  fileService;
+    private final HolidayService       holidayService;
 
     /** Used when a loan's product has no requiredDocumentTypes configured (see V23 migration) —
      *  every loan needs at least proof of identity and address on file before it can move. */
@@ -73,6 +74,12 @@ public class LoanService {
 
         if (!borrower.getOrganization().getId().equals(organizationId))
             throw new RuntimeException("Borrower does not belong to this organization");
+
+        if (borrower.getStatus() == Borrower.BorrowerStatus.BLACKLISTED) {
+            throw new RuntimeException(
+                "This borrower is blacklisted and cannot be issued a new loan. Reason on file: "
+                + (borrower.getBlacklistReason() != null ? borrower.getBlacklistReason() : "not specified"));
+        }
 
         Loan.LoanType requestedType = req.getLoanType() != null ? req.getLoanType() : Loan.LoanType.PERSONAL;
         LoanProduct product = loanProductRepo
@@ -377,7 +384,7 @@ public class LoanService {
     }
 
     // ===== helpers =====
-    private void generateRepaymentSchedule(Loan loan) {
+   private void generateRepaymentSchedule(Loan loan) {
         double principal = loan.getAmount() != null ? loan.getAmount() : 0;
         double rate      = loan.getInterestRate() != null ? loan.getInterestRate() : 0;
         String rateType  = loan.getInterestRateType() != null ? loan.getInterestRateType() : "ANNUAL";
@@ -385,8 +392,10 @@ public class LoanService {
         double monthly   = calcLoan(principal, rate, months, rateType)[0];
         double balance   = loan.getTotalRepayable() != null ? loan.getTotalRepayable() : principal;
         double mRate     = "MONTHLY".equalsIgnoreCase(rateType) ? rate / 100 : rate / 100 / 12;
+        Long   orgId     = loan.getOrganization().getId();
 
-        LocalDate due = (loan.getStartDate() != null ? loan.getStartDate() : LocalDate.now()).plusMonths(1);
+        LocalDate due = holidayService.adjustToBusinessDay(orgId,
+            (loan.getStartDate() != null ? loan.getStartDate() : LocalDate.now()).plusMonths(1));
 
         for (int i = 1; i <= months; i++) {
             double interest   = balance * mRate;
@@ -403,10 +412,10 @@ public class LoanService {
                 .status(Payment.PaymentStatus.PENDING)
                 .build();
             paymentRepo.save(p);
-            due = due.plusMonths(1);
+            due = holidayService.adjustToBusinessDay(orgId, due.plusMonths(1));
         }
-        loan.setNextDueDate(loan.getStartDate() != null
-            ? loan.getStartDate().plusMonths(1) : LocalDate.now().plusMonths(1));
+        loan.setNextDueDate(holidayService.adjustToBusinessDay(orgId, loan.getStartDate() != null
+            ? loan.getStartDate().plusMonths(1) : LocalDate.now().plusMonths(1)));
         loanRepo.save(loan);
     }
 

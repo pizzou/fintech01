@@ -9,6 +9,7 @@ import com.patrick.fintech.loan_backend.repository.JournalEntryRepository;
 import com.patrick.fintech.loan_backend.repository.OrganizationRepository;
 import com.patrick.fintech.loan_backend.service.AccountingService;
 import com.patrick.fintech.loan_backend.service.AuditService;
+import com.patrick.fintech.loan_backend.service.ReportExportService;
 import com.patrick.fintech.loan_backend.util.CurrentUserUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +32,7 @@ public class AccountingController {
     private final OrganizationRepository     orgRepo;
     private final CurrentUserUtil            currentUserUtil;
     private final AuditService               auditService;
+    private final ReportExportService      exportService;
 
     // ---- Chart of Accounts ----
 
@@ -165,6 +167,74 @@ public class AccountingController {
         csv.append("Total Liabilities,,,").append(bs.get("totalLiabilities")).append('\n');
         csv.append("Total Equity,,,").append(bs.get("totalEquity")).append('\n');
         return csvResponse(csv.toString(), "balance-sheet");
+    }
+
+    @GetMapping("/trial-balance/export/excel")
+    public ResponseEntity<byte[]> exportTrialBalanceExcel() {
+        Long orgId = currentUserUtil.getCurrentOrganizationId();
+        Map<String,Object> tb = accountingService.getTrialBalance(orgId);
+        @SuppressWarnings("unchecked")
+        List<Map<String,Object>> rows = (List<Map<String,Object>>) tb.get("accounts");
+        byte[] bytes = exportService.toExcel("Trial Balance",
+            List.of("code", "name", "type", "debit", "credit"), rows);
+        return fileResponse(bytes, "trial-balance.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    @GetMapping("/trial-balance/export/pdf")
+    public ResponseEntity<byte[]> exportTrialBalancePdf() {
+        Long orgId = currentUserUtil.getCurrentOrganizationId();
+        Organization org = orgRepo.findById(orgId).orElseThrow(() -> new RuntimeException("Organization not found"));
+        Map<String,Object> tb = accountingService.getTrialBalance(orgId);
+        @SuppressWarnings("unchecked")
+        List<Map<String,Object>> rows = (List<Map<String,Object>>) tb.get("accounts");
+        byte[] bytes = exportService.toPdf("Trial Balance",
+            List.of("code", "name", "type", "debit", "credit"), rows, org.getName());
+        return fileResponse(bytes, "trial-balance.pdf", "application/pdf");
+    }
+
+    @GetMapping("/balance-sheet/export/excel")
+    public ResponseEntity<byte[]> exportBalanceSheetExcel() {
+        Long orgId = currentUserUtil.getCurrentOrganizationId();
+        Map<String,Object> bs = accountingService.getBalanceSheet(orgId);
+        byte[] bytes = exportService.toExcel("Balance Sheet",
+            List.of("section", "code", "name", "balance"), flattenBalanceSheet(bs));
+        return fileResponse(bytes, "balance-sheet.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    @GetMapping("/balance-sheet/export/pdf")
+    public ResponseEntity<byte[]> exportBalanceSheetPdf() {
+        Long orgId = currentUserUtil.getCurrentOrganizationId();
+        Organization org = orgRepo.findById(orgId).orElseThrow(() -> new RuntimeException("Organization not found"));
+        Map<String,Object> bs = accountingService.getBalanceSheet(orgId);
+        byte[] bytes = exportService.toPdf("Balance Sheet",
+            List.of("section", "code", "name", "balance"), flattenBalanceSheet(bs), org.getName());
+        return fileResponse(bytes, "balance-sheet.pdf", "application/pdf");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String,Object>> flattenBalanceSheet(Map<String,Object> bs) {
+        List<Map<String,Object>> flat = new java.util.ArrayList<>();
+        for (var entry : Map.of("Assets", bs.get("assets"), "Liabilities", bs.get("liabilities"),
+                                  "Equity", bs.get("equity")).entrySet()) {
+            for (Map<String,Object> r : (List<Map<String,Object>>) entry.getValue()) {
+                Map<String,Object> row = new java.util.LinkedHashMap<>();
+                row.put("section", entry.getKey());
+                row.put("code", r.get("code"));
+                row.put("name", r.get("name"));
+                row.put("balance", r.get("balance"));
+                flat.add(row);
+            }
+        }
+        return flat;
+    }
+
+    private ResponseEntity<byte[]> fileResponse(byte[] bytes, String filename, String contentType) {
+        return ResponseEntity.ok()
+            .header("Content-Type", contentType)
+            .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+            .body(bytes);
     }
 
     @SuppressWarnings("unchecked")

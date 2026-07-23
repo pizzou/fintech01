@@ -106,6 +106,50 @@ public class BorrowerController {
             .body(ApiResponse.ok("Borrower created", saved));
     }
 
+    @PostMapping("/{id}/blacklist")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','MANAGER','AUDITOR')")
+    public ResponseEntity<ApiResponse<Borrower>> blacklist(@PathVariable Long id, @RequestBody java.util.Map<String, String> body) {
+        Organization org = currentUserUtil.getCurrentUser().getOrganization();
+        Borrower borrower = borrowerRepo.findById(id)
+            .filter(b -> b.getOrganization().getId().equals(org.getId()))
+            .orElseThrow(() -> new RuntimeException("Borrower not found"));
+
+        String reason = body.get("reason");
+        if (reason == null || reason.isBlank())
+            throw new RuntimeException("A reason is required to blacklist a borrower");
+
+        borrower.setStatus(Borrower.BorrowerStatus.BLACKLISTED);
+        borrower.setBlacklistReason(reason);
+        borrower.setBlacklistedAt(java.time.LocalDateTime.now());
+        borrower.setBlacklistedBy(currentUserUtil.getCurrentUser());
+        borrowerRepo.save(borrower);
+
+        auditService.log(org, currentUserUtil.getCurrentUser(), "BORROWER_BLACKLISTED", "BORROWER",
+            String.valueOf(borrower.getId()), "Blacklisted: " + reason, null, null, "Borrower Management");
+
+        return ResponseEntity.ok(ApiResponse.ok(borrower));
+    }
+
+    @PostMapping("/{id}/unblacklist")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<Borrower>> unblacklist(@PathVariable Long id) {
+        Organization org = currentUserUtil.getCurrentUser().getOrganization();
+        Borrower borrower = borrowerRepo.findById(id)
+            .filter(b -> b.getOrganization().getId().equals(org.getId()))
+            .orElseThrow(() -> new RuntimeException("Borrower not found"));
+
+        borrower.setStatus(Borrower.BorrowerStatus.ACTIVE);
+        borrower.setBlacklistReason(null);
+        borrower.setBlacklistedAt(null);
+        borrower.setBlacklistedBy(null);
+        borrowerRepo.save(borrower);
+
+        auditService.log(org, currentUserUtil.getCurrentUser(), "BORROWER_UNBLACKLISTED", "BORROWER",
+            String.valueOf(borrower.getId()), "Removed from blacklist", null, null, "Borrower Management");
+
+        return ResponseEntity.ok(ApiResponse.ok(borrower));
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<Borrower>> update(
             @PathVariable Long id, @RequestBody BorrowerRequest req) {
