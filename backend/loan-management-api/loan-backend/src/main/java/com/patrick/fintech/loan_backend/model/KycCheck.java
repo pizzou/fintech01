@@ -134,9 +134,13 @@ public class KycCheck {
     private String notes;
 
     /*
-     * Raw provider JSON
+     * Raw provider JSON. No @Lob on purpose — see BorrowerFile's/InternalDocument's own
+     * comments on this same pitfall: Hibernate 6 maps @Lob on a String to Postgres's oid
+     * (large object) type by default, which doesn't match the actual TEXT column created
+     * by the migration, causing a schema-validation failure at boot ("expecting oid but
+     * found text"). A plain String with columnDefinition="TEXT" matches correctly.
      */
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String rawResponse;
 
     /*
