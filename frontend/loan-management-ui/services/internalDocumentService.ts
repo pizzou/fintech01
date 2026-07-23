@@ -31,9 +31,8 @@ export const uploadInternalDocument = (
   form.append('title', title);
   form.append('category', category);
   if (description) form.append('description', description);
-  return API.post('/internal-documents', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }).then(r => unwrap(r.data) as InternalDocumentSummary);
+  return API.post('/internal-documents', form)
+    .then(r => unwrap(r.data) as InternalDocumentSummary);
 };
 
 export const deleteInternalDocument = (id: number): Promise<void> =>

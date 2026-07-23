@@ -196,7 +196,6 @@ export const publicApi = {
     return API.post(
       `/public/applications/${encodeURIComponent(reference.trim())}/documents`,
       form,
-      { headers: { 'Content-Type': 'multipart/form-data' } },
     ).then(r => (r.data as any)?.data ?? r.data);
   },
 };
