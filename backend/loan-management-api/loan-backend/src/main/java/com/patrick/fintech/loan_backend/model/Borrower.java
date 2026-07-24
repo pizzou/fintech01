@@ -101,7 +101,8 @@ public class Borrower {
     private LocalDateTime blacklistedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    private User blacklistedBy;
+@JoinColumn(name = "blacklisted_by_id")
+private User blacklistedBy;
 
     private String  bankName;
     @Convert(converter = com.patrick.fintech.loan_backend.security.CryptoConverter.class)
