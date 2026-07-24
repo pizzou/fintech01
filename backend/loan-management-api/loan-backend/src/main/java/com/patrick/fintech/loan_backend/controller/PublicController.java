@@ -94,46 +94,17 @@ public class PublicController {
         Loan loan = verifyOwnership(reference, phone);
 
         Map<String,Object> result = new LinkedHashMap<>();
-
-result.put("id", loan.getId());
-
-result.put("reference", loan.getReferenceNumber());
-
-result.put("status", loan.getStatus().name());
-
-result.put("statusLabel", statusLabel(loan.getStatus()));
-
-result.put("statusSteps", statusSteps(loan.getStatus()));
-
-result.put("loanType", loan.getLoanType());
-
-result.put("amount", loan.getAmount());
-
-result.put("currency", loan.getCurrency());
-
-result.put("outstandingBalance", loan.getOutstandingBalance());
-
-result.put("totalPaid", loan.getTotalPaid());
-
-result.put("nextAmountDue", loan.getNextInstallmentAmount());
-
-result.put("nextDueDate", loan.getNextPaymentDate());
-
-result.put("submittedDate", loan.getCreatedAt());
-
-result.put("updatedDate", loan.getUpdatedAt());
-
-result.put(
-    "rejectionReason",
-    loan.getStatus() == LoanStatus.REJECTED
-        ? loan.getRejectionReason()
-        : null
-);
-
-result.put(
-    "maritalStatus",
-    loan.getBorrower().getMaritalStatus()
-);
+        result.put("reference",     loan.getReferenceNumber());
+        result.put("status",        loan.getStatus().name());
+        result.put("statusLabel",   statusLabel(loan.getStatus()));
+        result.put("statusSteps",   statusSteps(loan.getStatus()));
+        result.put("loanType",      loan.getLoanType());
+        result.put("amount",        loan.getAmount());
+        result.put("currency",      loan.getCurrency());
+        result.put("submittedDate", loan.getCreatedAt());
+        result.put("updatedDate",   loan.getUpdatedAt());
+        result.put("rejectionReason", loan.getStatus() == LoanStatus.REJECTED ? loan.getRejectionReason() : null);
+        result.put("maritalStatus", loan.getBorrower().getMaritalStatus());
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
@@ -143,7 +114,7 @@ result.put(
      * tracking page if something was missed. Same phone-match ownership check
      * as tracking; no session/login involved.
      */
-    @PostMapping("/applications/{reference}/documents")
+   @PostMapping("/applications/{reference}/documents")
     @Transactional
     public ResponseEntity<ApiResponse<Map<String,Object>>> uploadApplicationDocument(
             @PathVariable String reference,
@@ -151,13 +122,18 @@ result.put(
             @RequestParam String documentType,
             @RequestParam("file") org.springframework.web.multipart.MultipartFile file) throws Exception {
         Loan loan = verifyOwnership(reference, phone);
-        if (!BorrowerFileService.DOCUMENT_TYPES.contains(documentType)) {
+
+        DocumentType docType;
+        try {
+            docType = DocumentType.valueOf(documentType.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
             throw new RuntimeException("Unknown document type.");
         }
-        var saved = fileService.upload(loan.getBorrower().getId(), file, documentType, true);
+
+        var saved = fileService.upload(loan.getBorrower().getId(), file, docType, true);
         auditService.log(loan.getBorrower().getOrganization(), null, "APPLICANT_DOCUMENT_UPLOADED",
             "BORROWER_FILE", saved.getId().toString(),
-            documentType + " uploaded by applicant for application " + loan.getReferenceNumber());
+            docType + " uploaded by applicant for application " + loan.getReferenceNumber());
 
         Map<String,Object> result = new LinkedHashMap<>();
         result.put("id", saved.getId());
@@ -213,10 +189,10 @@ result.put(
             throw new RuntimeException("Document not found.");
         if (!file.isUploadedByApplicant())
             throw new RuntimeException("This document was added by our staff and can't be removed here — contact us if it needs changing.");
-        if ("VERIFIED".equals(file.getVerificationStatus()))
+        if (file.getVerificationStatus() == VerificationStatus.VERIFIED)
             throw new RuntimeException("This document has already been verified and can no longer be removed. Contact us if it needs to be replaced.");
 
-        String documentType = file.getDocumentType();
+        DocumentType documentType = file.getDocumentType();
         String fileName = file.getFileName();
         fileService.delete(fileId);
 

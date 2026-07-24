@@ -31,6 +31,52 @@ public class LoanService {
     private final AuditService         auditService;
     private final LoanProductRepository loanProductRepo;
     private final AccountingService    accountingService;
+    private final BorrowerFileService  fileService;
+    private final HolidayService       holidayService;
+
+    /** Used when a loan's product has no requiredDocumentTypes configured (see V23 migration) —
+     *  every loan needs at least proof of identity and address on file before it can move. */
+      private static final List<DocumentType> DEFAULT_REQUIRED_DOCS = List.of(
+            DocumentType.NATIONAL_ID,
+            DocumentType.SELFIE,
+            DocumentType.PROOF_OF_ADDRESS
+    );
+
+    /** Resolves which document types this specific loan needs: the product's configured list
+     *  if one exists, otherwise the baseline. Product lookup mirrors createLoan's own lookup,
+     *  so "which product governs this loan" stays defined in exactly one place. */
+    private List<DocumentType> requiredDocsFor(Loan loan) {
+
+    LoanProduct product = loanProductRepo
+            .findFirstByOrganization_IdAndLoanTypeAndActiveTrue(
+                    loan.getOrganization().getId(),
+                    loan.getLoanType())
+            .orElse(null);
+
+    if (product == null) {
+        return DEFAULT_REQUIRED_DOCS;
+    }
+
+    List<String> configured = product.getRequiredDocumentTypesList();
+
+    if (configured == null || configured.isEmpty()) {
+        return DEFAULT_REQUIRED_DOCS;
+    }
+
+    List<DocumentType> documentTypes = new ArrayList<>();
+
+    for (String type : configured) {
+        try {
+            documentTypes.add(DocumentType.valueOf(type.trim().toUpperCase()));
+        } catch (IllegalArgumentException ex) {
+            throw new RuntimeException(
+                    "Invalid document type configured for Loan Product: " + type
+            );
+        }
+    }
+
+    return documentTypes;
+}
 
     // Annual rates by loan type
     private static final Map<Loan.LoanType, Double> BASE_RATES = Map.ofEntries(
@@ -57,6 +103,12 @@ public class LoanService {
 
         if (!borrower.getOrganization().getId().equals(organizationId))
             throw new RuntimeException("Borrower does not belong to this organization");
+
+        if (borrower.getStatus() == Borrower.BorrowerStatus.BLACKLISTED) {
+            throw new RuntimeException(
+                "This borrower is blacklisted and cannot be issued a new loan. Reason on file: "
+                + (borrower.getBlacklistReason() != null ? borrower.getBlacklistReason() : "not specified"));
+        }
 
         Loan.LoanType requestedType = req.getLoanType() != null ? req.getLoanType() : Loan.LoanType.PERSONAL;
         LoanProduct product = loanProductRepo
@@ -100,40 +152,31 @@ public class LoanService {
                            ? (calc[0] / borrower.getMonthlyIncome()) * 100 : 0;
 
         Loan loan = Loan.builder()
-    .referenceNumber(generateRef(org))
-    .organization(org)
-    .borrower(borrower)
-    .loanOfficer(createdBy)
-    .loanType(requestedType)
-    .repaymentFrequency(req.getRepaymentFrequency() != null
-        ? req.getRepaymentFrequency()
-        : Loan.RepaymentFrequency.MONTHLY)
-    .status(LoanStatus.PENDING)
-    .amount(principal)
-    .interestRate(rate)
-    .interestRateType(rateType)
-    .durationMonths(months)
-    .currency(req.getCurrency() != null ? req.getCurrency() : org.getDefaultCurrency())
-
-    .processingFee(round(procFee))
-    .totalRepayable(round(calc[1]))
-
-    // Borrower dashboard values
-    .outstandingBalance(round(calc[1]))
-    .totalPaid(0.0)
-    .nextInstallmentAmount(round(calc[0]))          // Monthly installment
-    .nextPaymentDate(LocalDate.now().plusMonths(1)) // First due date
-
-    .purpose(req.getPurpose())
-    .notes(req.getNotes())
-    .collateralDescription(req.getCollateralDescription())
-    .collateralValue(req.getCollateralValue())
-    .startDate(req.getStartDate() != null
-        ? LocalDate.parse(req.getStartDate())
-        : LocalDate.now())
-    .debtToIncomeRatio(round(dti))
-    .creditScoreSnapshot(borrower.getCreditScore())
-    .build();
+            .referenceNumber(generateRef(org))
+            .organization(org)
+            .borrower(borrower)
+            .loanOfficer(createdBy)
+            .loanType(requestedType)
+            .repaymentFrequency(req.getRepaymentFrequency() != null
+                ? req.getRepaymentFrequency() : Loan.RepaymentFrequency.MONTHLY)
+            .status(LoanStatus.PENDING)
+            .amount(principal)
+            .interestRate(rate)
+            .interestRateType(rateType)
+            .durationMonths(months)
+            .currency(req.getCurrency() != null ? req.getCurrency() : org.getDefaultCurrency())
+            .processingFee(round(procFee))
+            .totalRepayable(round(calc[1]))
+            .outstandingBalance(round(calc[1]))
+            .totalPaid(0.0)
+            .purpose(req.getPurpose())
+            .notes(req.getNotes())
+            .collateralDescription(req.getCollateralDescription())
+            .collateralValue(req.getCollateralValue())
+            .startDate(req.getStartDate() != null ? LocalDate.parse(req.getStartDate()) : LocalDate.now())
+            .debtToIncomeRatio(round(dti))
+            .creditScoreSnapshot(borrower.getCreditScore())
+            .build();
 
         Loan saved = loanRepo.save(loan);
 
@@ -149,6 +192,7 @@ public class LoanService {
     @Transactional
     public Loan approveLoan(Long loanId, User approvedBy, String notes) {
         Loan loan = getLoanForOrg(loanId, approvedBy.getOrganization().getId());
+
         if (loan.getStatus() != LoanStatus.PENDING && loan.getStatus() != LoanStatus.UNDER_REVIEW) {
             throw new RuntimeException("Cannot approve a loan that is " + loan.getStatus()
                 + " — only loans that are Pending or Under Review can be approved."
@@ -156,6 +200,24 @@ public class LoanService {
                     ? " This loan has already been fully paid off." : ""));
         }
 
+        if (loan.getBorrower() == null) {
+            throw new RuntimeException("Cannot approve loan " + loan.getReferenceNumber()
+                + " — it has no borrower record linked. This indicates a data problem; fix the "
+                + "borrower link before this loan can proceed.");
+        }
+        List<DocumentType> missingDocs = fileService.getMissingDocumentTypes(
+        loan.getBorrower().getId(),
+        requiredDocsFor(loan));
+
+if (!missingDocs.isEmpty()) {
+    throw new RuntimeException(
+        "Cannot approve this loan — the borrower hasn't uploaded: "
+        + missingDocs.stream()
+                     .map(DocumentType::name)
+                     .collect(java.util.stream.Collectors.joining(", "))
+        + ". Upload these documents first, or override the product's document requirements if they genuinely don't apply."
+    );
+}
         loan.setStatus(LoanStatus.APPROVED);
         loan.setApprovedBy(approvedBy);
         loan.setApprovedAt(LocalDate.now());
@@ -206,6 +268,25 @@ public class LoanService {
     public Loan disburseLoan(Long loanId, User officer, String disbursementMethod) {
         Loan loan = getLoanForOrg(loanId, officer.getOrganization().getId());
         if (loan.getStatus() != LoanStatus.APPROVED) throw new RuntimeException("Loan must be APPROVED before disbursement");
+
+        if (loan.getBorrower() == null) {
+            throw new RuntimeException("Cannot disburse loan " + loan.getReferenceNumber()
+                + " — it has no borrower record linked. This indicates a data problem; fix the "
+                + "borrower link before funds can be released.");
+        }
+       List<DocumentType> unverifiedDocs = fileService.getUnverifiedDocumentTypes(
+        loan.getBorrower().getId(),
+        requiredDocsFor(loan));
+
+if (!unverifiedDocs.isEmpty()) {
+    throw new RuntimeException(
+            "Cannot disburse this loan — staff still needs to verify: "
+            + unverifiedDocs.stream()
+                    .map(DocumentType::name)
+                    .collect(java.util.stream.Collectors.joining(", "))
+            + " in the Documents tab before funds can be released."
+    );
+}
         loan.setStatus(LoanStatus.ACTIVE);
         loan.setDisbursedAt(LocalDate.now());
         loan.setDisbursedAmount(loan.getAmount());
@@ -285,6 +366,60 @@ public class LoanService {
         return loan;
     }
 
+    /** Powers the "Required Documents" checklist on the loan detail page — lets an officer see
+     *  what's missing/unverified before they click Approve or Disburse and hit the exception. */
+    public Map<String, Object> getDocumentRequirements(Long loanId, Long orgId) {
+        Loan loan = getLoanForOrg(loanId, orgId);
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        if (loan.getBorrower() == null) {
+            // Shouldn't happen for any loan created through createLoan() — borrower_id is
+            // NOT NULL in the schema — but old/imported data can be missing it. Degrade
+            // gracefully instead of throwing, same as the frontend's Documents tab does.
+            result.put("required", List.of());
+            result.put("missing", List.of());
+            result.put("unverified", List.of());
+            result.put("readyToApprove", false);
+            result.put("readyToDisburse", false);
+            result.put("noBorrowerLinked", true);
+            return result;
+        }
+        List<DocumentType> required = requiredDocsFor(loan);
+
+List<DocumentType> missing =
+        fileService.getMissingDocumentTypes(
+                loan.getBorrower().getId(),
+                required);
+
+List<DocumentType> unverified =
+        fileService.getUnverifiedDocumentTypes(
+                loan.getBorrower().getId(),
+                required);
+
+// Convert enums to readable strings for the API response
+result.put(
+        "required",
+        required.stream()
+                .map(DocumentType::name)
+                .toList());
+
+result.put(
+        "missing",
+        missing.stream()
+                .map(DocumentType::name)
+                .toList());
+
+result.put(
+        "unverified",
+        unverified.stream()
+                .map(DocumentType::name)
+                .toList());
+
+result.put("readyToApprove", missing.isEmpty());
+result.put("readyToDisburse", unverified.isEmpty());
+
+return result;
+    }
+
     public DashboardStats getDashboard(Organization org) {
         LocalDate firstOfMonth = LocalDate.now().withDayOfMonth(1);
         long overdueCount = paymentRepo.findByOrganization_IdAndPaidFalseAndDueDateBefore(
@@ -316,7 +451,7 @@ public class LoanService {
     }
 
     // ===== helpers =====
-    private void generateRepaymentSchedule(Loan loan) {
+   private void generateRepaymentSchedule(Loan loan) {
         double principal = loan.getAmount() != null ? loan.getAmount() : 0;
         double rate      = loan.getInterestRate() != null ? loan.getInterestRate() : 0;
         String rateType  = loan.getInterestRateType() != null ? loan.getInterestRateType() : "ANNUAL";
@@ -324,8 +459,10 @@ public class LoanService {
         double monthly   = calcLoan(principal, rate, months, rateType)[0];
         double balance   = loan.getTotalRepayable() != null ? loan.getTotalRepayable() : principal;
         double mRate     = "MONTHLY".equalsIgnoreCase(rateType) ? rate / 100 : rate / 100 / 12;
+        Long   orgId     = loan.getOrganization().getId();
 
-        LocalDate due = (loan.getStartDate() != null ? loan.getStartDate() : LocalDate.now()).plusMonths(1);
+        LocalDate due = holidayService.adjustToBusinessDay(orgId,
+            (loan.getStartDate() != null ? loan.getStartDate() : LocalDate.now()).plusMonths(1));
 
         for (int i = 1; i <= months; i++) {
             double interest   = balance * mRate;
@@ -342,10 +479,10 @@ public class LoanService {
                 .status(Payment.PaymentStatus.PENDING)
                 .build();
             paymentRepo.save(p);
-            due = due.plusMonths(1);
+            due = holidayService.adjustToBusinessDay(orgId, due.plusMonths(1));
         }
-        loan.setNextDueDate(loan.getStartDate() != null
-            ? loan.getStartDate().plusMonths(1) : LocalDate.now().plusMonths(1));
+        loan.setNextDueDate(holidayService.adjustToBusinessDay(orgId, loan.getStartDate() != null
+            ? loan.getStartDate().plusMonths(1) : LocalDate.now().plusMonths(1)));
         loanRepo.save(loan);
     }
 

@@ -25,16 +25,16 @@ public class BorrowerFile {
     private Long   fileSize;
     private String filePath;
 
-    /** NATIONAL_ID, PASSPORT, DRIVING_LICENSE, PROOF_OF_ADDRESS, BANK_STATEMENT, PAYSLIP,
-     *  EMPLOYMENT_LETTER, BUSINESS_REGISTRATION, COLLATERAL_DOCUMENT, SINGLE_CERTIFICATE,
-     *  MARRIAGE_CERTIFICATE, SELFIE, OTHER — see BorrowerFileService.DOCUMENT_TYPES. */
-    private String documentType;
+   @Enumerated(EnumType.STRING)
+@Column(nullable = false)
+private DocumentType documentType;
 
     /** True when this file was uploaded by the applicant from the public apply/track flow, not by staff. */
     private boolean uploadedByApplicant;
 
-    /** PENDING_VERIFICATION, VERIFIED, REJECTED, REPLACEMENT_REQUESTED */
-    private String verificationStatus = "PENDING_VERIFICATION";
+    @Enumerated(EnumType.STRING)
+@Column(nullable = false)
+private VerificationStatus verificationStatus;
 
     /** Loan officer's note on this specific document, e.g. why it was rejected or what's needed instead. */
     @Column(columnDefinition = "TEXT")
@@ -65,6 +65,8 @@ public class BorrowerFile {
     @PrePersist
     protected void onCreate() {
         uploadedAt = LocalDateTime.now();
-        if (verificationStatus == null) verificationStatus = "PENDING_VERIFICATION";
+        if (verificationStatus == null) {
+    verificationStatus = VerificationStatus.PENDING;
+}
     }
 }

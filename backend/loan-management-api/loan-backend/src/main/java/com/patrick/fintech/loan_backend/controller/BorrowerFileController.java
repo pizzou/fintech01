@@ -13,6 +13,8 @@ import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.patrick.fintech.loan_backend.model.VerificationStatus;
+import com.patrick.fintech.loan_backend.model.DocumentType;
 import java.util.List;
 import java.util.Map;
 
@@ -33,24 +35,50 @@ public class BorrowerFileController {
     private final CurrentUserUtil     currentUserUtil;
 
     @PostMapping("/upload/{borrowerId}")
-    @org.springframework.transaction.annotation.Transactional
-    public ResponseEntity<ApiResponse<BorrowerFile>> upload(
-            @PathVariable Long borrowerId,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "documentType", required = false, defaultValue = "OTHER") String documentType) throws Exception {
-        User user = currentUserUtil.getCurrentUser();
-        var borrower = borrowerRepository.findById(borrowerId)
-            .orElseThrow(() -> new RuntimeException("Borrower not found: " + borrowerId));
-        if (!borrower.getOrganization().getId().equals(user.getOrganization().getId()))
-            throw new RuntimeException("Access denied");
+@org.springframework.transaction.annotation.Transactional
+public ResponseEntity<ApiResponse<BorrowerFile>> upload(
+        @PathVariable Long borrowerId,
+        @RequestParam("file") MultipartFile file,
+        @RequestParam(value = "documentType", required = false, defaultValue = "OTHER") String documentType) throws Exception {
 
-        BorrowerFile saved = fileService.upload(borrowerId, file, documentType, false);
-        auditService.log(saved.getBorrower().getOrganization(), user,
-            "DOCUMENT_UPLOADED", "BORROWER_FILE", String.valueOf(saved.getId()),
-            "Uploaded " + documentType + " (" + saved.getFileName() + ") for borrower #" + borrowerId,
-            null, null, "Documents & KYC");
-        return ResponseEntity.ok(ApiResponse.ok("File uploaded", saved));
+    User user = currentUserUtil.getCurrentUser();
+
+    var borrower = borrowerRepository.findById(borrowerId)
+            .orElseThrow(() -> new RuntimeException("Borrower not found: " + borrowerId));
+
+    if (!borrower.getOrganization().getId().equals(user.getOrganization().getId())) {
+        throw new RuntimeException("Access denied");
     }
+
+    DocumentType type;
+
+    try {
+        type = DocumentType.valueOf(documentType.toUpperCase());
+    } catch (IllegalArgumentException ex) {
+        type = DocumentType.OTHER;
+    }
+
+    BorrowerFile saved = fileService.upload(
+            borrowerId,
+            file,
+            type,
+            false
+    );
+
+    auditService.log(
+            saved.getBorrower().getOrganization(),
+            user,
+            "DOCUMENT_UPLOADED",
+            "BORROWER_FILE",
+            String.valueOf(saved.getId()),
+            "Uploaded " + type + " (" + saved.getFileName() + ") for borrower #" + borrowerId,
+            null,
+            null,
+            "Documents & KYC"
+    );
+
+    return ResponseEntity.ok(ApiResponse.ok("File uploaded", saved));
+}
 
     /** All documents for a borrower — staff KYC review list (Loan Officer opening an application). */
     @GetMapping("/borrower/{borrowerId}")
@@ -94,34 +122,86 @@ public class BorrowerFileController {
 
     /** Staff verification decision on a single document — Verified / Rejected / Replacement Requested. */
     @PatchMapping("/{fileId}/verify")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','LOAN_OFFICER')")
-    @org.springframework.transaction.annotation.Transactional
-    public ResponseEntity<ApiResponse<BorrowerFile>> verify(
-            @PathVariable Long fileId, @RequestBody Map<String, String> body) {
-        User user = currentUserUtil.getCurrentUser();
-        String status  = body.get("status");
-        String comment = body.get("comment");
+@PreAuthorize("hasAnyRole('ADMIN','MANAGER','LOAN_OFFICER')")
+@org.springframework.transaction.annotation.Transactional
+public ResponseEntity<ApiResponse<BorrowerFile>> verify(
+        @PathVariable Long fileId,
+        @RequestBody Map<String, String> body) {
 
-        BorrowerFile updated = fileService.verify(fileId, user.getOrganization().getId(), status, comment, user.getName());
+    User user = currentUserUtil.getCurrentUser();
 
-        auditService.log(updated.getBorrower().getOrganization(), user,
-            "DOCUMENT_" + status, "BORROWER_FILE", String.valueOf(fileId),
-            updated.getDocumentType() + " (" + updated.getFileName() + ") marked " + status
-                + (comment != null && !comment.isBlank() ? ": " + comment : ""),
-            null, null, "Documents & KYC");
+    String statusValue = body.get("status");
+    String comment = body.get("comment");
 
-        if (updated.getBorrower() != null && updated.getBorrower().getEmail() != null) {
-            try {
-                switch (status) {
-                    case "VERIFIED" -> mailService.sendDocumentVerified(updated.getBorrower(), updated.getDocumentType());
-                    case "REJECTED" -> mailService.sendDocumentRejected(updated.getBorrower(), updated.getDocumentType(), comment);
-                    case "REPLACEMENT_REQUESTED" -> mailService.sendDocumentReplacementRequested(updated.getBorrower(), updated.getDocumentType(), comment);
-                    default -> { /* PENDING_VERIFICATION — no email, just resets the flag */ }
-                }
-            } catch (Exception ignored) { /* best-effort */ }
-        }
-        return ResponseEntity.ok(ApiResponse.ok("Document " + status.toLowerCase().replace('_', ' '), updated));
+    VerificationStatus status;
+
+    try {
+        status = VerificationStatus.valueOf(statusValue.toUpperCase());
+    } catch (Exception ex) {
+        throw new RuntimeException("Invalid verification status: " + statusValue);
     }
+
+    BorrowerFile updated = fileService.verify(
+            fileId,
+            user.getOrganization().getId(),
+            status,
+            comment,
+            user.getName()
+    );
+
+    auditService.log(
+            updated.getBorrower().getOrganization(),
+            user,
+            "DOCUMENT_" + status.name(),
+            "BORROWER_FILE",
+            String.valueOf(fileId),
+            updated.getDocumentType().name() + " (" + updated.getFileName() + ") marked "
+                    + status.name()
+                    + (comment != null && !comment.isBlank()
+                        ? ": " + comment
+                        : ""),
+            null,
+            null,
+            "Documents & KYC"
+    );
+
+    if (updated.getBorrower() != null &&
+        updated.getBorrower().getEmail() != null) {
+
+        try {
+
+            switch (status) {
+
+                case VERIFIED ->
+                    mailService.sendDocumentVerified(
+                            updated.getBorrower(),
+                            updated.getDocumentType().name());
+
+                case REJECTED ->
+                    mailService.sendDocumentRejected(
+                            updated.getBorrower(),
+                            updated.getDocumentType().name(),
+                            comment);
+
+                case REPLACEMENT_REQUESTED ->
+                    mailService.sendDocumentReplacementRequested(
+                            updated.getBorrower(),
+                            updated.getDocumentType().name(),
+                            comment);
+
+                default -> {
+                }
+            }
+
+        } catch (Exception ignored) {
+        }
+    }
+
+    return ResponseEntity.ok(
+            ApiResponse.ok(
+                    "Document " + status.name().toLowerCase().replace('_', ' '),
+                    updated));
+}
 
     @DeleteMapping("/{fileId}")
     @org.springframework.transaction.annotation.Transactional
