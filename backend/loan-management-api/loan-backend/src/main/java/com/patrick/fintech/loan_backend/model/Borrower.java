@@ -94,8 +94,14 @@ public class Borrower {
 
     private String kycStatus;  // PENDING, VERIFIED, REJECTED
 
-    @Enumerated(EnumType.STRING)
+   @Enumerated(EnumType.STRING)
     private BorrowerStatus status;
+
+    private String blacklistReason;
+    private LocalDateTime blacklistedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User blacklistedBy;
 
     private String  bankName;
     @Convert(converter = com.patrick.fintech.loan_backend.security.CryptoConverter.class)

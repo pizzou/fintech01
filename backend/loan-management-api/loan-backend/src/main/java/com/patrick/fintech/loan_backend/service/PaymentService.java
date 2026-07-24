@@ -89,34 +89,13 @@ public class PaymentService {
         loan.setLastPaymentDate(LocalDate.now());
 
         if (newBalance <= 0) {
-
-    loan.setStatus(LoanStatus.PAID);
-    loan.setNextPaymentDate(null);
-    loan.setNextInstallmentAmount(0.0);
-
-} else {
-
-    loan.setStatus(LoanStatus.ACTIVE);
-
-    if (installment != null) {
-
-        loan.setNextPaymentDate(
-            installment.getDueDate().plusMonths(1)
-        );
-
-        Payment nextInstallment = paymentRepo.findByLoanId(loanId)
-            .stream()
-            .filter(p -> !p.getPaid())
-            .min(java.util.Comparator.comparing(Payment::getDueDate))
-            .orElse(null);
-
-        if (nextInstallment != null) {
-            loan.setNextInstallmentAmount(nextInstallment.getAmount());
+            loan.setStatus(LoanStatus.PAID);
         } else {
-            loan.setNextInstallmentAmount(0.0);
+            loan.setStatus(LoanStatus.ACTIVE);
+            // Advance next due date
+            if (installment != null)
+                loan.setNextDueDate(installment.getDueDate().plusMonths(1));
         }
-    }
-}
         loanRepo.save(loan);
 
         audit(loan.getOrganization(), recordedBy, "PAYMENT_RECORDED", "PAYMENT",
@@ -125,15 +104,7 @@ public class PaymentService {
 
         try { mailService.sendPaymentConfirmation(loan, amount); } catch (Exception e) { log.warn("Notif failed", e); }
         try { smsService.sendPaymentConfirmed(loan, amount); } catch (Exception e) { log.warn("SMS failed", e); }
-        // recordedBy is null for system-originated payments (see the comment above) — nobody to
-        // notify "by" in that case, so just skip the notify-officer step entirely rather than
-        // NPE on recordedBy.getId(). This previously threw inside the @Transactional method,
-        // which rolled back the whole payment (installment + loan balance update) for every
-        // webhook-confirmed payment on a loan with a loan officer assigned — the payment was
-        // real and Flutterwave had already been told 200 OK (see PaymentWebhookController), but
-        // nothing was actually saved.
-        if (recordedBy != null && loan.getLoanOfficer() != null
-                && !loan.getLoanOfficer().getId().equals(recordedBy.getId())) {
+        if (loan.getLoanOfficer() != null && !loan.getLoanOfficer().getId().equals(recordedBy.getId())) {
             try {
                 notifService.notifyUsers(java.util.List.of(loan.getLoanOfficer()), "Payment Received",
                     "A payment of " + loan.getCurrency() + " " + amount + " was recorded on loan "
