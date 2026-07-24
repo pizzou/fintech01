@@ -14,13 +14,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 
 /**
  * Public-facing API — NO authentication required.
- * Serves tenant branding config and accepts online loan applications
- * from the public website (Growth Finance, Noble Loan Solutions,
- * Infinity Loan Solutions, and any other tenant).
+ * Serves this bank's own branding config and accepts online loan applications
+ * from the public website. Single-tenant: every endpoint here resolves to this
+ * deployment's one organization, not a directory of tenants.
  */
 @RestController
 @RequestMapping("/api/public")
@@ -93,17 +94,46 @@ public class PublicController {
         Loan loan = verifyOwnership(reference, phone);
 
         Map<String,Object> result = new LinkedHashMap<>();
-        result.put("reference",     loan.getReferenceNumber());
-        result.put("status",        loan.getStatus().name());
-        result.put("statusLabel",   statusLabel(loan.getStatus()));
-        result.put("statusSteps",   statusSteps(loan.getStatus()));
-        result.put("loanType",      loan.getLoanType());
-        result.put("amount",        loan.getAmount());
-        result.put("currency",      loan.getCurrency());
-        result.put("submittedDate", loan.getCreatedAt());
-        result.put("updatedDate",   loan.getUpdatedAt());
-        result.put("rejectionReason", loan.getStatus() == LoanStatus.REJECTED ? loan.getRejectionReason() : null);
-        result.put("maritalStatus", loan.getBorrower().getMaritalStatus());
+
+result.put("id", loan.getId());
+
+result.put("reference", loan.getReferenceNumber());
+
+result.put("status", loan.getStatus().name());
+
+result.put("statusLabel", statusLabel(loan.getStatus()));
+
+result.put("statusSteps", statusSteps(loan.getStatus()));
+
+result.put("loanType", loan.getLoanType());
+
+result.put("amount", loan.getAmount());
+
+result.put("currency", loan.getCurrency());
+
+result.put("outstandingBalance", loan.getOutstandingBalance());
+
+result.put("totalPaid", loan.getTotalPaid());
+
+result.put("nextAmountDue", loan.getNextInstallmentAmount());
+
+result.put("nextDueDate", loan.getNextPaymentDate());
+
+result.put("submittedDate", loan.getCreatedAt());
+
+result.put("updatedDate", loan.getUpdatedAt());
+
+result.put(
+    "rejectionReason",
+    loan.getStatus() == LoanStatus.REJECTED
+        ? loan.getRejectionReason()
+        : null
+);
+
+result.put(
+    "maritalStatus",
+    loan.getBorrower().getMaritalStatus()
+);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
@@ -284,30 +314,6 @@ public class PublicController {
     }
 
     /**
-     * Lists all active/trial organizations with public storefronts —
-     * used by the root landing page to let visitors pick their lender.
-     */
-    @GetMapping("/tenants")
-    public ResponseEntity<ApiResponse<List<Map<String,Object>>>> listTenants() {
-        List<Map<String,Object>> tenants = orgRepo.findAll().stream()
-            .filter(o -> o.getStatus() == Organization.OrgStatus.ACTIVE || o.getStatus() == Organization.OrgStatus.TRIAL)
-            .map(o -> {
-                Map<String,Object> m = new LinkedHashMap<>();
-                m.put("name", o.getName());
-                m.put("slug", slugFor(o));
-                m.put("country", o.getCountry());
-                m.put("currency", o.getDefaultCurrency());
-                m.put("primaryColor", o.getPrimaryColor() != null ? o.getPrimaryColor() : "#0D6B3E");
-                m.put("accentColor", o.getAccentColor() != null ? o.getAccentColor() : "#F5A623");
-                m.put("logoUrl", o.getLogoUrl());
-                m.put("address", o.getAddress());
-                return m;
-            })
-            .toList();
-        return ResponseEntity.ok(ApiResponse.ok(tenants));
-    }
-
-    /**
      * Returns tenant branding, services config, and contact info
      * for the public website — identified by URL slug or registration number.
      */
@@ -365,7 +371,7 @@ public class PublicController {
      * review, notifies the org's staff in-app, and confirms to the applicant
      * by SMS — all fully persisted (this used to only log to the console).
      */
-    @PostMapping("/loan-application")
+        @PostMapping("/loan-application")
     @Transactional
     public ResponseEntity<ApiResponse<Map<String,Object>>> submitApplication(
             @RequestBody Map<String,Object> body,
@@ -374,8 +380,7 @@ public class PublicController {
         Organization org = resolveOrg(slug);
         if (org == null) throw new RuntimeException("We couldn't identify this lender. Please refresh the page and try again.");
 
-        // Applications queued while offline are retried on sync — this key (stable
-        // per queued submission) stops a retry from creating a second application.
+        // Applications queued while offline are retried on sync — this key stops duplicate submissions
         var idempotency = idempotencyService.checkOrReserve(idempotencyKey, org, "POST /public/loan-application", body.toString());
         if (idempotency.isReplay()) {
             return ResponseEntity.ok(ApiResponse.ok("Application received", Map.of("status", "RECEIVED", "message", "Already submitted")));
@@ -388,6 +393,9 @@ public class PublicController {
         Double amount = num(body.get("amount"));
         if (amount == null || amount <= 0) throw new RuntimeException("Loan amount is required");
 
+        boolean acceptedTerms = body.get("acceptedTerms") != null && Boolean.parseBoolean(body.get("acceptedTerms").toString());
+        if (!acceptedTerms) throw new RuntimeException("You must accept the Terms & Conditions to submit an application");
+
         String maritalStatus = str(body.get("maritalStatus"));
         if ("Married".equalsIgnoreCase(maritalStatus) && (str(body.get("spouseFullName")) == null)) {
             throw new RuntimeException("Spouse's full name is required for married applicants");
@@ -396,7 +404,7 @@ public class PublicController {
             throw new RuntimeException("Single Status Certificate number is required for single applicants");
         }
 
-        // Find or create the borrower for this org (avoids duplicate profiles on repeat applications)
+        // Find or create the borrower for this org
         Borrower borrower = borrowerRepo.findByPhoneHashAndOrganization_Id(
                 com.patrick.fintech.loan_backend.security.HmacIndexer.index(phone), org.getId())
             .orElseGet(() -> Borrower.builder().organization(org).build());
@@ -404,7 +412,13 @@ public class PublicController {
         borrower.setFirstName(firstName);
         borrower.setLastName(str(body.get("lastName")));
         borrower.setPhone(phone);
-        if (str(body.get("email")) != null) borrower.setEmail(str(body.get("email")));
+        
+        // 🔑 CRUCIAL: Intentionally enforce mapping your input email parameter value to the profile
+        String inputEmail = str(body.get("email"));
+        if (inputEmail != null && !inputEmail.isBlank()) {
+            borrower.setEmail(inputEmail.trim());
+        }
+        
         borrower.setNationalId(str(body.get("nationalId")));
         borrower.setDateOfBirth(date(body.get("dateOfBirth")));
         borrower.setGender(str(body.get("gender")));
@@ -446,9 +460,24 @@ public class PublicController {
             .build();
 
         Loan loan = loanService.createLoan(req, org.getId(), null);
+        loan.setTermsAcceptedAt(LocalDateTime.now());
+        
+        // Explicitly guarantee the borrower entity reference holds the input email details before database execution
+        if (loan.getBorrower() != null && (loan.getBorrower().getEmail() == null || loan.getBorrower().getEmail().isBlank())) {
+            loan.getBorrower().setEmail(inputEmail);
+        }
+        
+        loan = loanRepo.save(loan);
 
         notifyStaff(org, borrower, loan);
-        try { mailService.sendApplicationReceived(loan); } catch (Exception e) { log.warn("Application-received email failed", e); }
+
+        // 🔥 CRUCIAL REPAIR: Loud error tracing tracking instead of generic silent catch logging
+        try { 
+            mailService.sendApplicationReceived(loan); 
+            log.info("[EMAIL SUCCESS] Dispatched application received alert to: {}", borrower.getEmail());
+        } catch (Exception e) { 
+            log.error("[EMAIL CRITICAL FAILURE] Outbound loan receipt transmission failed line error trace:", e); 
+        }
 
         try {
             smsService.sendCustom(phone, String.format(
@@ -595,24 +624,6 @@ public class PublicController {
         if (l.contains("trade"))                             return Loan.LoanType.TRADE_FINANCE;
         if (l.contains("group"))                             return Loan.LoanType.GROUP;
         return Loan.LoanType.PERSONAL;
-    }
-
-    /** Prefers a short slug from the org's email domain (e.g. "growthfinance.rw" -> "growthfinance"),
-     *  falling back to the full slugified name when no domain is on file. Must stay consistent
-     *  with resolveOrg()'s contains-matching, since both operate on the same slugified name. */
-    private String slugFor(Organization o) {
-        if (o.getContactEmail() != null && o.getContactEmail().contains("@")) {
-            String domain = o.getContactEmail().substring(o.getContactEmail().indexOf('@') + 1);
-            String candidate = domain.contains(".") ? domain.substring(0, domain.indexOf('.')) : domain;
-            candidate = candidate.toLowerCase().replaceAll("[^a-z0-9]", "");
-            if (!candidate.isBlank() && slugify(o.getName()).contains(candidate)) return candidate;
-        }
-        return slugify(o.getName());
-    }
-
-    /** Turns an org name into the URL-friendly slug used to reach its site, e.g. "Noble Loan Solutions" -> "nobleloansolutions". */
-    private String slugify(String name) {
-        return name == null ? "" : name.toLowerCase().replaceAll("[^a-z0-9]", "");
     }
 
     private String str(Object o) { return o == null ? null : o.toString().isBlank() ? null : o.toString(); }
