@@ -191,7 +191,7 @@ export default function TrackPage() {
               <div><span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Approved Principal</span><div className="font-bold text-gray-900 mt-0.5">{result.currency} {fmt(result.amount)}</div></div>
               <div><span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Loan Product</span><div className="font-bold text-gray-900 mt-0.5">{result.loanType}</div></div>
               
-              {result.status === 'DISBURSED' && (
+              {(result.status?.includes('DISBURSED') || result.status?.includes('ACTIVE')) && (
                 <>
                   <div><span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Balance Outstanding</span><div className="font-bold text-red-600 mt-0.5">{result.currency} {fmt(result.outstandingBalance ?? result.amount)}</div></div>
                   <div><span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Next Settlement Due</span><div className="font-bold text-gray-900 mt-0.5">{result.nextDueDate ? fmtDate(result.nextDueDate) : '—'}</div></div>
