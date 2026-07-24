@@ -40,21 +40,47 @@ public class InternalDocumentService {
         }
     }
 
-    public InternalDocument upload(Organization org, User uploadedBy, MultipartFile file,
+   public InternalDocument upload(Organization org, User uploadedBy, MultipartFile file,
                                     String title, String category, String description) throws IOException {
+        if (org == null) throw new RuntimeException("Could not determine your organization — please sign out and back in, then try again.");
         validate(file);
+
         String cat = (category != null && CATEGORIES.contains(category.toUpperCase())) ? category.toUpperCase() : "OTHER";
+
+        // file.getOriginalFilename() can come back null or blank in some browsers/upload paths
+        // (drag-and-drop from certain sources, some mobile webviews). title/fileName are both
+        // NOT NULL columns in the database -- previously, a null here silently reached Postgres
+        // and came back as a generic "conflicts with an existing record" error that gave no hint
+        // what was actually wrong. This resolves a safe fallback instead of ever sending null,
+        // and validates title explicitly so a real problem surfaces as a clear message here
+        // instead of a masked database error later.
+        String safeFileName = (file.getOriginalFilename() != null && !file.getOriginalFilename().isBlank())
+            ? file.getOriginalFilename()
+            : "document-" + System.currentTimeMillis();
+
+        String resolvedTitle = (title != null && !title.isBlank())
+            ? title
+            : safeFileName;
+
+        if (resolvedTitle == null || resolvedTitle.isBlank())
+            throw new RuntimeException("Please enter a title for this document, or choose a file with a valid file name.");
+        if (file.getContentType() == null || file.getContentType().isBlank())
+            throw new RuntimeException("Could not determine this file's type. Please try a different file.");
+        if (file.getSize() <= 0)
+            throw new RuntimeException("This file appears to be empty.");
+
         InternalDocument doc = InternalDocument.builder()
             .organization(org)
-            .title(title != null && !title.isBlank() ? title : file.getOriginalFilename())
+            .title(resolvedTitle)
             .category(cat)
             .description(description)
-            .fileName(file.getOriginalFilename())
+            .fileName(safeFileName)
             .fileType(file.getContentType())
             .fileSize(file.getSize())
             .data(file.getBytes())
             .uploadedBy(uploadedBy)
             .build();
+
         doc = docRepo.save(doc);
         auditService.log(org, uploadedBy, "INTERNAL_DOCUMENT_UPLOADED", "INTERNAL_DOCUMENT",
             String.valueOf(doc.getId()), "Uploaded \"" + doc.getTitle() + "\" (" + cat + ")",
