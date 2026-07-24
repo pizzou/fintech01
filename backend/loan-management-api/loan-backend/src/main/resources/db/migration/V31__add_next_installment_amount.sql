@@ -1,0 +1,2 @@
+ALTER TABLE loans
+ADD COLUMN IF NOT EXISTS next_installment_amount DOUBLE PRECISION;
