@@ -101,7 +101,9 @@ public class Borrower {
     private LocalDateTime blacklistedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
-@JoinColumn(name = "blacklisted_by_id")
+
+@JoinColumn(name = "blacklisted_by")
+
 private User blacklistedBy;
 
     private String  bankName;
