@@ -80,8 +80,8 @@ export default function DocumentsPanel({ borrowerId }: { borrowerId: number }) {
   if (loading) return <div className="text-center py-10 text-gray-400 text-sm">Loading documents…</div>;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm mt-4">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
         <div>
           <h2 className="font-semibold text-gray-800 text-sm">Documents and KYC Files</h2>
           <p className="text-xs text-gray-400 mt-0.5">
@@ -91,7 +91,7 @@ export default function DocumentsPanel({ borrowerId }: { borrowerId: number }) {
         <label
           className={
             'cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 ' +
-            'rounded-lg text-sm font-medium transition ' +
+            'rounded-lg text-sm font-medium transition shadow-sm ' +
             (uploading ? 'opacity-60 pointer-events-none' : '')
           }
         >
@@ -117,66 +117,80 @@ export default function DocumentsPanel({ borrowerId }: { borrowerId: number }) {
       ) : (
         <div className="divide-y divide-gray-100">
           {files.map(f => {
-            const statusMeta = VERIFICATION_STATUS_META[f.verificationStatus || 'PENDING_VERIFICATION'];
-            const isSelfie = f.documentType === 'SELFIE';
+            // 🔑 THE FIX: Fall back to safe keys and default objects to protect against undefined 'className'
+            const currentStatus = (f.verificationStatus || 'PENDING_VERIFICATION').toUpperCase();
+            let normalizedKey = 'PENDING_VERIFICATION';
+            if (currentStatus === 'VERIFIED' || currentStatus === 'APPROVED') normalizedKey = 'VERIFIED';
+            if (currentStatus === 'REJECTED' || currentStatus === 'DECLINED') normalizedKey = 'REJECTED';
+            if (currentStatus === 'REPLACEMENT_REQUESTED') normalizedKey = 'REPLACEMENT_REQUESTED';
+
+            const statusMeta = VERIFICATION_STATUS_META[normalizedKey] || {
+              className: 'bg-gray-100 text-gray-600 border-gray-200',
+              label: 'Pending Review'
+            };
+
+            const isSelfie = f.documentType === 'SELFIE' || f.documentType === 'SELFIE_LIVENESS';
+            const isIdFront = f.documentType === 'NATIONAL_ID_FRONT';
+            const isIdBack = f.documentType === 'NATIONAL_ID_BACK';
+
             return (
-            <div key={f.id} className="px-6 py-4 hover:bg-gray-50">
-              <div className="flex items-center gap-4">
-                <span className="text-2xl flex-shrink-0">
-                  {isSelfie ? '🤳' : fileIcon(f.fileType)}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">
-                    {f.fileName}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-2 flex-wrap">
-                    <span>{f.fileType + ' · ' + formatFileSize(f.fileSize)}</span>
-                    {f.documentType && (
-                      <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-semibold text-[10px] uppercase tracking-wide">
-                        {DOCUMENT_TYPE_LABELS[f.documentType] || f.documentType.replace(/_/g, ' ')}
+              <div key={f.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <span className="text-2xl flex-shrink-0">
+                    {isSelfie ? '🤳' : isIdFront ? '🪪' : isIdBack ? '🆔' : fileIcon(f.fileType)}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">
+                      {f.fileName}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-2 flex-wrap">
+                      <span>{f.fileType + ' · ' + formatFileSize(f.fileSize)}</span>
+                      {f.documentType && (
+                        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-semibold text-[10px] uppercase tracking-wide">
+                          {isIdFront ? 'National ID (Front)' : isIdBack ? 'National ID (Back)' : DOCUMENT_TYPE_LABELS[f.documentType] || f.documentType.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                      {f.uploadedByApplicant && (
+                        <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-semibold text-[10px] uppercase tracking-wide">
+                          From Applicant
+                        </span>
+                      )}
+                      <span className={`px-1.5 py-0.5 rounded font-semibold text-[10px] uppercase tracking-wide ${statusMeta.className}`}>
+                        {statusMeta.label}
                       </span>
-                    )}
-                    {f.uploadedByApplicant && (
-                      <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-semibold text-[10px] uppercase tracking-wide">
-                        From Applicant
-                      </span>
-                    )}
-                    <span className={`px-1.5 py-0.5 rounded font-semibold text-[10px] uppercase tracking-wide ${statusMeta.className}`}>
-                      {statusMeta.label}
-                    </span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-                  <button
-                    onClick={() => handlePreview(f.id)}
-                    className="text-gray-600 hover:text-gray-800 text-xs font-medium border border-gray-200 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition"
-                  >
-                    Preview
-                  </button>
-                  <button
-                    onClick={() => handleDownload(f.id, f.fileName)}
-                    className="text-blue-600 hover:text-blue-800 text-xs font-medium border border-blue-200 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition"
-                  >
-                    Download
-                  </button>
-                  {f.verificationStatus !== 'VERIFIED' && (
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
                     <button
-                      onClick={() => startVerifyAction(f.id, 'VERIFIED')}
-                      className="text-green-700 hover:text-green-800 text-xs font-medium border border-green-200 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition"
+                      onClick={() => handlePreview(f.id)}
+                      className="text-gray-600 hover:text-gray-800 text-xs font-medium border border-gray-200 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition"
                     >
-                      Verify
+                      Preview
                     </button>
-                  )}
-                  <button
-                    onClick={() => startVerifyAction(f.id, 'REPLACEMENT_REQUESTED')}
-                    className="text-amber-700 hover:text-amber-800 text-xs font-medium border border-amber-200 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition"
-                  >
-                    Request Replacement
-                  </button>
-                  <button
-                    onClick={() => startVerifyAction(f.id, 'REJECTED')}
-                    className="text-red-500 hover:text-red-700 text-xs font-medium border border-red-100 bg-white hover:bg-red-50 px-3 py-1.5 rounded-lg transition"
-                  >
+                    <button
+                      onClick={() => handleDownload(f.id, f.fileName)}
+                      className="text-blue-600 hover:text-blue-800 text-xs font-medium border border-blue-200 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition"
+                    >
+                      Download
+                    </button>
+                    {f.verificationStatus !== 'VERIFIED' && (
+                      <button
+                        onClick={() => startVerifyAction(f.id, 'VERIFIED')}
+                        className="text-green-700 hover:text-green-800 text-xs font-medium border border-green-200 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition"
+                      >
+                        Verify
+                      </button>
+                    )}
+                    <button
+                      onClick={() => startVerifyAction(f.id, 'REPLACEMENT_REQUESTED')}
+                      className="text-amber-700 hover:text-amber-800 text-xs font-medium border border-amber-200 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition"
+                    >
+                      Request Replacement
+                    </button>
+                    <button
+                      onClick={() => startVerifyAction(f.id, 'REJECTED')}
+                      className="text-red-500 hover:text-red-700 text-xs font-medium border border-red-100 bg-white hover:bg-red-50 px-3 py-1.5 rounded-lg transition"
+                    >
                     Reject
                   </button>
                   <button
