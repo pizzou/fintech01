@@ -12,7 +12,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.patrick.fintech.loan_backend.model.DocumentType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -95,46 +97,111 @@ public class LoanProductController {
             throw new RuntimeException("Access denied");
     }
 
-    private void applyFields(LoanProduct p, Map<String,Object> body) {
-        if (body.get("name") != null)        p.setName(body.get("name").toString());
-        if (body.get("icon") != null)        p.setIcon(body.get("icon").toString());
-        if (body.get("description") != null) p.setDescription(body.get("description").toString());
-        if (body.get("loanType") != null)    p.setLoanType(Loan.LoanType.valueOf(body.get("loanType").toString()));
-        if (body.get("interestRate") != null)         p.setInterestRate(num(body.get("interestRate")));
-        if (body.get("interestRateType") != null) {
-            String t = body.get("interestRateType").toString().toUpperCase();
-            if (!t.equals("MONTHLY") && !t.equals("ANNUAL"))
-                throw new RuntimeException("interestRateType must be MONTHLY or ANNUAL");
-            p.setInterestRateType(t);
-        }
-        if (body.get("minAmount") != null)            p.setMinAmount(num(body.get("minAmount")));
-        // "unlimited": true (or an explicit null maxAmount) clears the upper bound
-        if (Boolean.TRUE.equals(body.get("unlimited"))) {
-            p.setMaxAmount(null);
-        } else if (body.containsKey("maxAmount")) {
-            p.setMaxAmount(body.get("maxAmount") != null ? num(body.get("maxAmount")) : null);
-        }
-        if (body.get("processingFeePercent") != null) p.setProcessingFeePercent(num(body.get("processingFeePercent")));
-        if (body.get("minTermMonths") != null) p.setMinTermMonths((int) Math.round(num(body.get("minTermMonths"))));
-        if (body.get("maxTermMonths") != null) p.setMaxTermMonths((int) Math.round(num(body.get("maxTermMonths"))));
-        if (body.get("displayOrder")  != null) p.setDisplayOrder((int) Math.round(num(body.get("displayOrder"))));
-        if (body.get("active") != null)        p.setActive(Boolean.parseBoolean(body.get("active").toString()));
-        if (body.get("requiredDocumentTypes") != null) {
-            String raw = body.get("requiredDocumentTypes").toString();
-            List<String> types = java.util.Arrays.stream(raw.split(","))
-                .map(String::trim).filter(s -> !s.isEmpty()).toList();
-            for (String t : types) {
-                if (!com.patrick.fintech.loan_backend.service.BorrowerFileService.DOCUMENT_TYPES.contains(t))
-                    throw new RuntimeException("Unknown document type: " + t);
-            }
-            p.setRequiredDocumentTypes(types.isEmpty() ? null : String.join(",", types));
+    private void applyFields(LoanProduct p, Map<String, Object> body) {
+
+    if (body.get("name") != null)
+        p.setName(body.get("name").toString());
+
+    if (body.get("icon") != null)
+        p.setIcon(body.get("icon").toString());
+
+    if (body.get("description") != null)
+        p.setDescription(body.get("description").toString());
+
+    if (body.get("loanType") != null)
+        p.setLoanType(Loan.LoanType.valueOf(body.get("loanType").toString().toUpperCase()));
+
+    if (body.get("interestRate") != null)
+        p.setInterestRate(num(body.get("interestRate")));
+
+    if (body.get("interestRateType") != null) {
+        String t = body.get("interestRateType").toString().toUpperCase();
+
+        if (!t.equals("MONTHLY") && !t.equals("ANNUAL")) {
+            throw new RuntimeException("interestRateType must be MONTHLY or ANNUAL");
         }
 
-        if (p.getMinAmount() != null && p.getMaxAmount() != null && p.getMinAmount() > p.getMaxAmount())
-            throw new RuntimeException("Minimum amount cannot exceed maximum amount");
-        if (p.getMinTermMonths() != null && p.getMaxTermMonths() != null && p.getMinTermMonths() > p.getMaxTermMonths())
-            throw new RuntimeException("Minimum term cannot exceed maximum term");
+        p.setInterestRateType(t);
     }
 
+    if (body.get("minAmount") != null)
+        p.setMinAmount(num(body.get("minAmount")));
+
+    // unlimited products have no upper limit
+    if (Boolean.TRUE.equals(body.get("unlimited"))) {
+        p.setMaxAmount(null);
+    } else if (body.containsKey("maxAmount")) {
+        p.setMaxAmount(
+                body.get("maxAmount") != null
+                        ? num(body.get("maxAmount"))
+                        : null
+        );
+    }
+
+    if (body.get("processingFeePercent") != null)
+        p.setProcessingFeePercent(num(body.get("processingFeePercent")));
+
+    if (body.get("minTermMonths") != null)
+        p.setMinTermMonths((int) Math.round(num(body.get("minTermMonths"))));
+
+    if (body.get("maxTermMonths") != null)
+        p.setMaxTermMonths((int) Math.round(num(body.get("maxTermMonths"))));
+
+    if (body.get("displayOrder") != null)
+        p.setDisplayOrder((int) Math.round(num(body.get("displayOrder"))));
+
+    if (body.get("active") != null)
+        p.setActive(Boolean.parseBoolean(body.get("active").toString()));
+
+    /*
+     * Required documents
+     */
+    if (body.get("requiredDocumentTypes") != null) {
+
+        String raw = body.get("requiredDocumentTypes").toString();
+
+        List<String> validatedTypes = new ArrayList<>();
+
+        for (String value : raw.split(",")) {
+
+            String type = value.trim().toUpperCase();
+
+            if (type.isBlank())
+                continue;
+
+            try {
+                DocumentType.valueOf(type);
+                validatedTypes.add(type);
+            } catch (IllegalArgumentException ex) {
+                throw new RuntimeException("Unknown document type: " + type);
+            }
+        }
+
+        p.setRequiredDocumentTypes(
+                validatedTypes.isEmpty()
+                        ? null
+                        : String.join(",", validatedTypes)
+        );
+    }
+
+    /*
+     * Validation
+     */
+    if (p.getMinAmount() != null
+            && p.getMaxAmount() != null
+            && p.getMinAmount() > p.getMaxAmount()) {
+
+        throw new RuntimeException(
+                "Minimum amount cannot exceed maximum amount");
+    }
+
+    if (p.getMinTermMonths() != null
+            && p.getMaxTermMonths() != null
+            && p.getMinTermMonths() > p.getMaxTermMonths()) {
+
+        throw new RuntimeException(
+                "Minimum term cannot exceed maximum term");
+    }
+}
     private Double num(Object o) { return Double.valueOf(o.toString()); }
 }
