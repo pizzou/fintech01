@@ -125,7 +125,15 @@ public class PaymentService {
 
         try { mailService.sendPaymentConfirmation(loan, amount); } catch (Exception e) { log.warn("Notif failed", e); }
         try { smsService.sendPaymentConfirmed(loan, amount); } catch (Exception e) { log.warn("SMS failed", e); }
-        if (loan.getLoanOfficer() != null && !loan.getLoanOfficer().getId().equals(recordedBy.getId())) {
+        // recordedBy is null for system-originated payments (see the comment above) — nobody to
+        // notify "by" in that case, so just skip the notify-officer step entirely rather than
+        // NPE on recordedBy.getId(). This previously threw inside the @Transactional method,
+        // which rolled back the whole payment (installment + loan balance update) for every
+        // webhook-confirmed payment on a loan with a loan officer assigned — the payment was
+        // real and Flutterwave had already been told 200 OK (see PaymentWebhookController), but
+        // nothing was actually saved.
+        if (recordedBy != null && loan.getLoanOfficer() != null
+                && !loan.getLoanOfficer().getId().equals(recordedBy.getId())) {
             try {
                 notifService.notifyUsers(java.util.List.of(loan.getLoanOfficer()), "Payment Received",
                     "A payment of " + loan.getCurrency() + " " + amount + " was recorded on loan "
