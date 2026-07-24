@@ -66,6 +66,14 @@ public class Loan {
     private RepaymentFrequency repaymentFrequency;
 
     private Double  amount;
+
+
+
+@Column(name = "next_installment_amount")
+private Double nextInstallmentAmount;
+
+@Column(name = "next_payment_date")
+private LocalDate nextPaymentDate;
     private Double  interestRate;        // meaning depends on interestRateType — see LoanProduct
     @Builder.Default
     private String  interestRateType = "ANNUAL"; // MONTHLY or ANNUAL — copied from the product at creation time

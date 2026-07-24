@@ -89,13 +89,34 @@ public class PaymentService {
         loan.setLastPaymentDate(LocalDate.now());
 
         if (newBalance <= 0) {
-            loan.setStatus(LoanStatus.PAID);
+
+    loan.setStatus(LoanStatus.PAID);
+    loan.setNextPaymentDate(null);
+    loan.setNextInstallmentAmount(0.0);
+
+} else {
+
+    loan.setStatus(LoanStatus.ACTIVE);
+
+    if (installment != null) {
+
+        loan.setNextPaymentDate(
+            installment.getDueDate().plusMonths(1)
+        );
+
+        Payment nextInstallment = paymentRepo.findByLoanId(loanId)
+            .stream()
+            .filter(p -> !p.getPaid())
+            .min(java.util.Comparator.comparing(Payment::getDueDate))
+            .orElse(null);
+
+        if (nextInstallment != null) {
+            loan.setNextInstallmentAmount(nextInstallment.getAmount());
         } else {
-            loan.setStatus(LoanStatus.ACTIVE);
-            // Advance next due date
-            if (installment != null)
-                loan.setNextDueDate(installment.getDueDate().plusMonths(1));
+            loan.setNextInstallmentAmount(0.0);
         }
+    }
+}
         loanRepo.save(loan);
 
         audit(loan.getOrganization(), recordedBy, "PAYMENT_RECORDED", "PAYMENT",

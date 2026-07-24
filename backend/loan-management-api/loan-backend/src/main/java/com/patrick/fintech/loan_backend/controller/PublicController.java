@@ -94,17 +94,46 @@ public class PublicController {
         Loan loan = verifyOwnership(reference, phone);
 
         Map<String,Object> result = new LinkedHashMap<>();
-        result.put("reference",     loan.getReferenceNumber());
-        result.put("status",        loan.getStatus().name());
-        result.put("statusLabel",   statusLabel(loan.getStatus()));
-        result.put("statusSteps",   statusSteps(loan.getStatus()));
-        result.put("loanType",      loan.getLoanType());
-        result.put("amount",        loan.getAmount());
-        result.put("currency",      loan.getCurrency());
-        result.put("submittedDate", loan.getCreatedAt());
-        result.put("updatedDate",   loan.getUpdatedAt());
-        result.put("rejectionReason", loan.getStatus() == LoanStatus.REJECTED ? loan.getRejectionReason() : null);
-        result.put("maritalStatus", loan.getBorrower().getMaritalStatus());
+
+result.put("id", loan.getId());
+
+result.put("reference", loan.getReferenceNumber());
+
+result.put("status", loan.getStatus().name());
+
+result.put("statusLabel", statusLabel(loan.getStatus()));
+
+result.put("statusSteps", statusSteps(loan.getStatus()));
+
+result.put("loanType", loan.getLoanType());
+
+result.put("amount", loan.getAmount());
+
+result.put("currency", loan.getCurrency());
+
+result.put("outstandingBalance", loan.getOutstandingBalance());
+
+result.put("totalPaid", loan.getTotalPaid());
+
+result.put("nextAmountDue", loan.getNextInstallmentAmount());
+
+result.put("nextDueDate", loan.getNextPaymentDate());
+
+result.put("submittedDate", loan.getCreatedAt());
+
+result.put("updatedDate", loan.getUpdatedAt());
+
+result.put(
+    "rejectionReason",
+    loan.getStatus() == LoanStatus.REJECTED
+        ? loan.getRejectionReason()
+        : null
+);
+
+result.put(
+    "maritalStatus",
+    loan.getBorrower().getMaritalStatus()
+);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
