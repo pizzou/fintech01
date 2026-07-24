@@ -188,21 +188,76 @@ export default function TrackPage() {
             )}
 
             <div className="grid grid-cols-2 gap-4 text-xs border-t border-gray-100 pt-4 font-semibold text-gray-600">
-              <div><span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Approved Principal</span><div className="font-bold text-gray-900 mt-0.5">{result.currency} {fmt(result.amount)}</div></div>
-              <div><span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Loan Product</span><div className="font-bold text-gray-900 mt-0.5">{result.loanType}</div></div>
-              
-              {(result.status?.includes('DISBURSED') || result.status?.includes('ACTIVE')) && (
-                <>
-                  <div><span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Balance Outstanding</span><div className="font-bold text-red-600 mt-0.5">{result.currency} {fmt(result.outstandingBalance ?? result.amount)}</div></div>
-                  <div><span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Next Settlement Due</span><div className="font-bold text-gray-900 mt-0.5">{result.nextDueDate ? fmtDate(result.nextDueDate) : '—'}</div></div>
-                </>
-              )}
 
-              <div className="border-t col-span-2 pt-3 flex justify-between text-[11px] text-gray-400">
-                <span>Created: {fmtDate(result.submittedDate)}</span>
-                <span>Updated: {fmtDate(result.updatedDate)}</span>
-              </div>
-            </div>
+  <div>
+    <span className="text-gray-400 text-[10px] uppercase font-bold">
+      Loan Amount
+    </span>
+    <div className="font-bold text-gray-900 mt-1">
+      {result.currency} {fmt(result.amount)}
+    </div>
+  </div>
+
+  <div>
+    <span className="text-gray-400 text-[10px] uppercase font-bold">
+      Loan Product
+    </span>
+    <div className="font-bold text-gray-900 mt-1">
+      {result.loanType}
+    </div>
+  </div>
+
+  {(result.status?.includes("DISBURSED") ||
+    result.status?.includes("ACTIVE")) && (
+    <>
+      <div>
+        <span className="text-gray-400 text-[10px] uppercase font-bold">
+          Outstanding Balance
+        </span>
+
+        <div className="font-bold text-red-600 mt-1">
+          {result.currency} {fmt(result.outstandingBalance ?? 0)}
+        </div>
+      </div>
+
+      <div>
+        <span className="text-gray-400 text-[10px] uppercase font-bold">
+          Total Paid
+        </span>
+
+        <div className="font-bold text-green-600 mt-1">
+          {result.currency} {fmt(result.totalPaid ?? 0)}
+        </div>
+      </div>
+
+      <div>
+        <span className="text-gray-400 text-[10px] uppercase font-bold">
+          Next Installment
+        </span>
+
+        <div className="font-bold text-blue-700 mt-1">
+          {result.currency} {fmt(result.nextAmountDue ?? 0)}
+        </div>
+      </div>
+
+      <div>
+        <span className="text-gray-400 text-[10px] uppercase font-bold">
+          Next Due Date
+        </span>
+
+        <div className="font-bold text-gray-900 mt-1">
+          {fmtDate(result.nextDueDate)}
+        </div>
+      </div>
+    </>
+  )}
+
+  <div className="border-t col-span-2 pt-3 flex justify-between text-[11px] text-gray-400">
+    <span>Created: {fmtDate(result.submittedDate)}</span>
+    <span>Updated: {fmtDate(result.updatedDate)}</span>
+  </div>
+
+</div>
 
             {/* ⚡ PAYMENT INITIATION KEY */}
             {result.status === 'DISBURSED' && (result.outstandingBalance ?? 1) > 0 && (
