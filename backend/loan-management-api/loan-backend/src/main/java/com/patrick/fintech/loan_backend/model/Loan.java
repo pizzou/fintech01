@@ -30,27 +30,23 @@ public class Loan {
     @JoinColumn(name = "organization_id", nullable = false)
     private Organization organization;
 
-    // Previously @JsonIgnore with fetch = LAZY and no flattened getter to compensate — meaning
-    // loan.borrower (and branch/loanOfficer/approvedBy below) were invisible in every API
-    // response for every loan, not just ones from the public website. The frontend has always
-    // expected these populated (see the Loan TS type and every page that reads
-    // loan.borrower.firstName). EAGER here avoids a LazyInitializationException the moment
-    // Jackson tries to serialize them — with spring.jpa.open-in-view=false, the Hibernate
-    // session is already closed by the time the controller's response gets serialized, so a
-    // LAZY, not-yet-initialized proxy would fail at that point rather than during the request.
-    @ManyToOne(fetch = FetchType.EAGER)
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id")
     private Branch branch;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "borrower_id", nullable = false)
     private Borrower borrower;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by")
     private User approvedBy;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "loan_officer_id")
     private User loanOfficer;
 
@@ -66,14 +62,6 @@ public class Loan {
     private RepaymentFrequency repaymentFrequency;
 
     private Double  amount;
-
-
-
-@Column(name = "next_installment_amount")
-private Double nextInstallmentAmount;
-
-@Column(name = "next_payment_date")
-private LocalDate nextPaymentDate;
     private Double  interestRate;        // meaning depends on interestRateType — see LoanProduct
     @Builder.Default
     private String  interestRateType = "ANNUAL"; // MONTHLY or ANNUAL — copied from the product at creation time
@@ -111,11 +99,6 @@ private LocalDate nextPaymentDate;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-
-    /** When the applicant checked "I agree to the Terms & Conditions" on the public application
-     *  form. Null for loans created by staff directly (no separate applicant consent step there).
-     *  This is the evidence a regulator or dispute would ask for — not just a UI checkbox. */
-    private LocalDateTime termsAcceptedAt;
 
     @JsonIgnore
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL)

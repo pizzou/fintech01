@@ -100,40 +100,31 @@ public class LoanService {
                            ? (calc[0] / borrower.getMonthlyIncome()) * 100 : 0;
 
         Loan loan = Loan.builder()
-    .referenceNumber(generateRef(org))
-    .organization(org)
-    .borrower(borrower)
-    .loanOfficer(createdBy)
-    .loanType(requestedType)
-    .repaymentFrequency(req.getRepaymentFrequency() != null
-        ? req.getRepaymentFrequency()
-        : Loan.RepaymentFrequency.MONTHLY)
-    .status(LoanStatus.PENDING)
-    .amount(principal)
-    .interestRate(rate)
-    .interestRateType(rateType)
-    .durationMonths(months)
-    .currency(req.getCurrency() != null ? req.getCurrency() : org.getDefaultCurrency())
-
-    .processingFee(round(procFee))
-    .totalRepayable(round(calc[1]))
-
-    // Borrower dashboard values
-    .outstandingBalance(round(calc[1]))
-    .totalPaid(0.0)
-    .nextInstallmentAmount(round(calc[0]))          // Monthly installment
-    .nextPaymentDate(LocalDate.now().plusMonths(1)) // First due date
-
-    .purpose(req.getPurpose())
-    .notes(req.getNotes())
-    .collateralDescription(req.getCollateralDescription())
-    .collateralValue(req.getCollateralValue())
-    .startDate(req.getStartDate() != null
-        ? LocalDate.parse(req.getStartDate())
-        : LocalDate.now())
-    .debtToIncomeRatio(round(dti))
-    .creditScoreSnapshot(borrower.getCreditScore())
-    .build();
+            .referenceNumber(generateRef(org))
+            .organization(org)
+            .borrower(borrower)
+            .loanOfficer(createdBy)
+            .loanType(requestedType)
+            .repaymentFrequency(req.getRepaymentFrequency() != null
+                ? req.getRepaymentFrequency() : Loan.RepaymentFrequency.MONTHLY)
+            .status(LoanStatus.PENDING)
+            .amount(principal)
+            .interestRate(rate)
+            .interestRateType(rateType)
+            .durationMonths(months)
+            .currency(req.getCurrency() != null ? req.getCurrency() : org.getDefaultCurrency())
+            .processingFee(round(procFee))
+            .totalRepayable(round(calc[1]))
+            .outstandingBalance(round(calc[1]))
+            .totalPaid(0.0)
+            .purpose(req.getPurpose())
+            .notes(req.getNotes())
+            .collateralDescription(req.getCollateralDescription())
+            .collateralValue(req.getCollateralValue())
+            .startDate(req.getStartDate() != null ? LocalDate.parse(req.getStartDate()) : LocalDate.now())
+            .debtToIncomeRatio(round(dti))
+            .creditScoreSnapshot(borrower.getCreditScore())
+            .build();
 
         Loan saved = loanRepo.save(loan);
 
