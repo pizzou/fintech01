@@ -46,6 +46,10 @@ public class PublicController {
     private final IdempotencyService     idempotencyService;
     private final com.patrick.fintech.loan_backend.repository.LoanCommentRepository loanCommentRepo;
     private final com.patrick.fintech.loan_backend.repository.ContactMessageRepository contactMessageRepo;
+    private final FlutterwaveService     flutterwaveService;
+    private final PaymentService         paymentService;
+    private final PaymentScheduleRepository paymentScheduleRepo;
+    private final ReportExportService    exportService;
 
     /**
      * Public "Contact Us" form submission — notifies the org's staff in-app
@@ -123,8 +127,11 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         result.put("status",        loan.getStatus().name());
         result.put("statusLabel",   statusLabel(loan.getStatus()));
         result.put("statusSteps",   statusSteps(loan.getStatus()));
+        result.put("progressSteps", progressSteps(loan));
+        result.put("timeline",      timeline(loan));
         result.put("loanType",      loan.getLoanType());
         result.put("amount",        loan.getAmount());
+        result.put("principal",     loan.getAmount());
         result.put("currency",      loan.getCurrency());
         result.put("submittedDate", loan.getCreatedAt());
         result.put("updatedDate",   loan.getUpdatedAt());
@@ -261,6 +268,171 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
     }
 
     /**
+     * Lets a borrower pay their loan themselves from the tracking page — card, mobile
+     * money, or bank transfer, via the same Flutterwave integration staff use internally
+     * (see PaymentGatewayController). Same phone-match ownership check as the rest of
+     * this controller; no session/login involved.
+     *
+     * If "amount" isn't supplied, defaults to the next installment due, falling back to
+     * the full outstanding balance if there's no scheduled installment on record.
+     *
+     * Card/bank-transfer/most mobile-money charges are asynchronous — Flutterwave confirms
+     * them later via webhook (PaymentWebhookController), not in this response.
+     */
+    @PostMapping("/applications/{reference}/payments/initiate")
+    @Transactional
+    public ResponseEntity<ApiResponse<Map<String,Object>>> initiatePublicPayment(
+            @PathVariable String reference,
+            @RequestParam String phone,
+            @RequestBody Map<String,Object> body) {
+        Loan loan = verifyOwnership(reference, phone);
+
+        if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.OVERDUE) {
+            throw new RuntimeException("This loan isn't currently accepting payments (status: " + loan.getStatus() + ").");
+        }
+
+        String method = str(body.get("paymentMethod"));
+        if (method == null) throw new RuntimeException("Payment method is required.");
+
+        Double requestedAmount = num(body.get("amount"));
+        double dueAmount;
+        if (requestedAmount != null && requestedAmount > 0) {
+            dueAmount = requestedAmount;
+        } else if (loan.getNextInstallmentAmount() != null && loan.getNextInstallmentAmount() > 0) {
+            dueAmount = loan.getNextInstallmentAmount();
+        } else {
+            dueAmount = loan.getOutstandingBalance() != null ? loan.getOutstandingBalance() : 0;
+        }
+        if (dueAmount <= 0) throw new RuntimeException("There's nothing due on this loan right now.");
+
+        com.patrick.fintech.loan_backend.dto.PaymentGatewayRequest req = new com.patrick.fintech.loan_backend.dto.PaymentGatewayRequest();
+        req.setAmount(dueAmount);
+        req.setPaymentMethod(method.toUpperCase());
+        req.setPhoneNumber(str(body.get("phoneNumber")));
+        req.setNetwork(str(body.get("network")));
+        req.setCardNumber(str(body.get("cardNumber")));
+        req.setCardCvv(str(body.get("cardCvv")));
+        req.setCardExpiryMonth(str(body.get("cardExpiryMonth")));
+        req.setCardExpiryYear(str(body.get("cardExpiryYear")));
+        req.setAccountNumber(str(body.get("accountNumber")));
+        req.setBankCode(str(body.get("bankCode")));
+        req.setEmail(str(body.get("email")));
+
+        com.patrick.fintech.loan_backend.dto.PaymentGatewayResponse gw = flutterwaveService.initiatePayment(
+            loan.getId(), req, dueAmount, loan.getCurrency(), "Loan repayment " + loan.getReferenceNumber());
+
+        Map<String,Object> result = new LinkedHashMap<>();
+        result.put("status", gw.getStatus());
+        result.put("message", gw.getMessage());
+        result.put("transactionId", gw.getTransactionId());
+        result.put("redirectUrl", gw.getRedirectUrl()); // present for card 3DS — frontend should redirect here if set
+
+        if ("success".equals(gw.getStatus())) {
+            // Simulation mode, or a gateway that confirms synchronously — record right away.
+            // recordedBy is null: this is a borrower self-service payment, no staff actor.
+            paymentService.recordPayment(loan.getId(), gw.getAmount() != null ? gw.getAmount() : dueAmount,
+                req.getPaymentMethod(), gw.getTransactionId(), "GATEWAY", "Paid via Flutterwave (borrower self-service)", null);
+            result.put("recorded", true);
+            auditService.log(loan.getOrganization(), null, "PUBLIC_PAYMENT_COMPLETED", "LOAN", loan.getId().toString(),
+                "Borrower self-service payment of " + dueAmount + " " + loan.getCurrency() + " completed for loan " + loan.getReferenceNumber());
+            return ResponseEntity.ok(ApiResponse.ok("Payment completed", result));
+        }
+
+        if ("pending".equals(gw.getStatus())) {
+            // Real mobile money / bank transfer — waiting on the borrower to approve on their
+            // phone, or on bank settlement. The webhook completes this, NOT this response.
+            result.put("recorded", false);
+            auditService.log(loan.getOrganization(), null, "PUBLIC_PAYMENT_INITIATED", "LOAN", loan.getId().toString(),
+                "Borrower self-service payment of " + dueAmount + " " + loan.getCurrency() + " initiated (pending confirmation) for loan " + loan.getReferenceNumber());
+            return ResponseEntity.ok(ApiResponse.ok(
+                "Payment initiated — confirm on your phone, or await bank settlement", result));
+        }
+
+        throw new RuntimeException("Payment failed: " + gw.getMessage());
+    }
+
+    /** Loan agreement — key terms, as a downloadable PDF. */
+    @GetMapping("/applications/{reference}/documents/agreement.pdf")
+    public ResponseEntity<byte[]> downloadAgreement(@PathVariable String reference, @RequestParam String phone) {
+        Loan loan = verifyOwnership(reference, phone);
+        byte[] pdf = exportService.toPdf("Loan Agreement", List.of("Field", "Detail"), agreementRows(loan), loan.getOrganization().getName());
+        return pdfResponse(pdf, "Loan-Agreement-" + loan.getReferenceNumber());
+    }
+
+    /** Full installment-by-installment repayment schedule, as a downloadable PDF. */
+    @GetMapping("/applications/{reference}/documents/schedule.pdf")
+    public ResponseEntity<byte[]> downloadSchedule(@PathVariable String reference, @RequestParam String phone) {
+        Loan loan = verifyOwnership(reference, phone);
+        List<String> columns = List.of("#", "Due Date", "Principal", "Interest", "Total", "Status");
+        List<Map<String,Object>> rows = paymentScheduleRepo.findByLoanIdOrderByInstallmentNumberAsc(loan.getId()).stream()
+            .map(s -> {
+                Map<String,Object> m = new LinkedHashMap<>();
+                m.put("#", s.getInstallmentNumber());
+                m.put("Due Date", s.getDueDate());
+                m.put("Principal", s.getPrincipalAmount());
+                m.put("Interest", s.getInterestAmount());
+                m.put("Total", s.getInstallmentAmount());
+                m.put("Status", s.getStatus());
+                return m;
+            }).toList();
+        byte[] pdf = exportService.toPdf("Repayment Schedule", columns, rows, loan.getOrganization().getName());
+        return pdfResponse(pdf, "Repayment-Schedule-" + loan.getReferenceNumber());
+    }
+
+    /** Disbursement receipt — only available once funds have actually gone out. */
+    @GetMapping("/applications/{reference}/documents/receipt.pdf")
+    public ResponseEntity<byte[]> downloadReceipt(@PathVariable String reference, @RequestParam String phone) {
+        Loan loan = verifyOwnership(reference, phone);
+        if (loan.getDisbursedAt() == null)
+            throw new RuntimeException("This loan hasn't been disbursed yet — no receipt is available.");
+        byte[] pdf = exportService.toPdf("Disbursement Receipt", List.of("Field", "Detail"), receiptRows(loan), loan.getOrganization().getName());
+        return pdfResponse(pdf, "Disbursement-Receipt-" + loan.getReferenceNumber());
+    }
+
+    private ResponseEntity<byte[]> pdfResponse(byte[] bytes, String filenameBase) {
+        return ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+            .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filenameBase + ".pdf\"")
+            .body(bytes);
+    }
+
+    private List<Map<String,Object>> agreementRows(Loan loan) {
+        List<Map<String,Object>> rows = new ArrayList<>();
+        java.util.function.BiConsumer<String,Object> add = (k, v) -> {
+            Map<String,Object> m = new LinkedHashMap<>(); m.put("Field", k); m.put("Detail", v); rows.add(m);
+        };
+        add.accept("Borrower", loan.getBorrower() != null ? loan.getBorrower().getFullName() : null);
+        add.accept("Reference Number", loan.getReferenceNumber());
+        add.accept("Loan Type", loan.getLoanType());
+        add.accept("Principal Amount", loan.getCurrency() + " " + loan.getAmount());
+        add.accept("Interest Rate", loan.getInterestRate() + "% " + loan.getInterestRateType());
+        add.accept("Duration", loan.getDurationMonths() + " months");
+        add.accept("Repayment Frequency", loan.getRepaymentFrequency());
+        add.accept("Total Repayable", loan.getCurrency() + " " + loan.getTotalRepayable());
+        add.accept("Processing Fee", loan.getCurrency() + " " + loan.getProcessingFee());
+        add.accept("Start Date", loan.getStartDate());
+        add.accept("Maturity Date", loan.getMaturityDate());
+        add.accept("Purpose", loan.getPurpose());
+        add.accept("Collateral", loan.getCollateralDescription());
+        add.accept("Loan Officer", loan.getLoanOfficer() != null ? loan.getLoanOfficer().getFullName() : "—");
+        return rows;
+    }
+
+    private List<Map<String,Object>> receiptRows(Loan loan) {
+        List<Map<String,Object>> rows = new ArrayList<>();
+        java.util.function.BiConsumer<String,Object> add = (k, v) -> {
+            Map<String,Object> m = new LinkedHashMap<>(); m.put("Field", k); m.put("Detail", v); rows.add(m);
+        };
+        add.accept("Borrower", loan.getBorrower() != null ? loan.getBorrower().getFullName() : null);
+        add.accept("Reference Number", loan.getReferenceNumber());
+        add.accept("Amount Disbursed", loan.getCurrency() + " " + loan.getDisbursedAmount());
+        add.accept("Disbursement Date", loan.getDisbursedAt());
+        add.accept("Loan Officer", loan.getLoanOfficer() != null ? loan.getLoanOfficer().getFullName() : "—");
+        add.accept("First Installment Due", loan.getNextPaymentDate());
+        return rows;
+    }
+
+    /**
      * Looks up an application by reference and confirms the caller knows the
      * phone number on file — the only "auth" a public, session-less endpoint
      * like this has. A reference number alone is guessable/sequential, so
@@ -312,6 +484,90 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
             steps.add(s);
         }
         return steps;
+    }
+
+    /**
+     * The richer 9-stage tracker for the borrower dashboard — aware of document
+     * upload/verification state and credit assessment, not just the coarse loan
+     * status. Same {label, complete, failed} shape as statusSteps() above, so the
+     * existing generic step-renderer on the frontend needs no changes to show it.
+     */
+    private List<Map<String,Object>> progressSteps(Loan loan) {
+        LoanStatus status = loan.getStatus();
+        boolean failedApplication = status == LoanStatus.REJECTED || status == LoanStatus.CANCELLED;
+
+        boolean docsUploaded = false, docsVerified = false;
+        if (loan.getBorrower() != null) {
+            Map<String,Object> docReq = loanService.getDocumentRequirements(loan.getId(), loan.getOrganization().getId());
+            docsUploaded = Boolean.TRUE.equals(docReq.get("readyToApprove"));
+            docsVerified = Boolean.TRUE.equals(docReq.get("readyToDisburse"));
+        }
+
+        boolean underReview   = status != LoanStatus.PENDING;
+        boolean creditAssessed = loan.getRiskScore() != null;
+        boolean approved      = loan.getApprovedAt() != null;
+        boolean disbursed     = loan.getDisbursedAt() != null;
+        boolean closed        = status == LoanStatus.PAID || status == LoanStatus.CLOSED;
+
+        String[] labels = {
+            "Application Submitted", "Documents Uploaded", "Documents Verified", "Under Review",
+            "Credit Assessment", "Loan Approved", "Loan Disbursed", "Loan Active", "Loan Closed"
+        };
+        boolean[] complete = { true, docsUploaded, docsVerified, underReview, creditAssessed, approved, disbursed, disbursed, closed };
+
+        List<Map<String,Object>> steps = new ArrayList<>();
+        boolean failurePlaced = false;
+        for (int i = 0; i < labels.length; i++) {
+            Map<String,Object> s = new LinkedHashMap<>();
+            s.put("label", labels[i]);
+            boolean isFailurePoint = failedApplication && !failurePlaced && !complete[i];
+            s.put("complete", complete[i] && !failedApplication);
+            s.put("failed", isFailurePoint);
+            if (isFailurePoint) failurePlaced = true;
+            steps.add(s);
+        }
+        return steps;
+    }
+
+    /**
+     * A dated event log built from real, already-recorded timestamps (loan lifecycle
+     * dates, document upload/verification dates, per-installment paid dates) — not a
+     * separate tracking mechanism, so there's nothing new to keep in sync.
+     */
+    private List<Map<String,Object>> timeline(Loan loan) {
+        List<Map.Entry<LocalDateTime,String>> raw = new ArrayList<>();
+
+        if (loan.getCreatedAt() != null) raw.add(Map.entry(loan.getCreatedAt(), "Application submitted"));
+
+        if (loan.getBorrower() != null) {
+            List<BorrowerFile> files = fileService.getByBorrowerMetadataOnly(loan.getBorrower().getId());
+            files.stream().map(BorrowerFile::getUploadedAt).filter(Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .ifPresent(d -> raw.add(Map.entry(d, "Documents uploaded")));
+            files.stream().map(BorrowerFile::getVerifiedAt).filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .ifPresent(d -> raw.add(Map.entry(d, "Documents verified")));
+        }
+
+        if (loan.getApprovedAt() != null) raw.add(Map.entry(loan.getApprovedAt().atStartOfDay(), "Loan approved"));
+        if (loan.getStatus() == LoanStatus.REJECTED && loan.getUpdatedAt() != null)
+            raw.add(Map.entry(loan.getUpdatedAt(), "Application not approved"
+                + (loan.getRejectionReason() != null && !loan.getRejectionReason().isBlank() ? ": " + loan.getRejectionReason() : "")));
+        if (loan.getDisbursedAt() != null) raw.add(Map.entry(loan.getDisbursedAt().atStartOfDay(), "Loan disbursed"));
+
+        paymentService.getLoanSchedule(loan.getId(), loan.getOrganization().getId()).stream()
+            .filter(p -> Boolean.TRUE.equals(p.getPaid()) && p.getPaidDate() != null)
+            .forEach(p -> raw.add(Map.entry(p.getPaidDate().atStartOfDay(), "Installment #" + p.getInstallmentNumber() + " paid")));
+
+        return raw.stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(e -> {
+                Map<String,Object> m = new LinkedHashMap<>();
+                m.put("date", e.getKey());
+                m.put("label", e.getValue());
+                return m;
+            })
+            .collect(java.util.stream.Collectors.toList());
     }
 
     /**
@@ -570,11 +826,11 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
     private List<Map<String,Object>> buildProducts() {
         List<Map<String,Object>> products = new ArrayList<>();
         String[][] defaults = {
-            {"Personal Loan",     "👤","15","5000000","36","Fast personal financing for any purpose"},
+            {"Personal Loan",     "👤","10","10000000","36","Fast personal financing for any purpose"},
             {"Business Loan",     "🏢","12","50000000","60","Working capital and business expansion"},
-            {"Agricultural Loan", "🌾","9", "10000000","24","Seasonal farming and agribusiness finance"},
+            {"Agricultural Loan", "🌾","10", "10000000","24","Seasonal farming and agribusiness finance"},
             {"SME Finance",       "📦","11","30000000","48","Tailored finance for small businesses"},
-            {"Salary Advance",    "💵","5", "2000000", "3", "Quick advance on your monthly salary"},
+            {"Salary Advance",    "💵","10", "2000000", "3", "Quick advance on your monthly salary"},
             {"Microfinance",      "💡","18","500000",  "12","Small loans for micro-entrepreneurs"},
         };
         for (String[] p : defaults) {

@@ -182,6 +182,13 @@ export const publicApi = {
   apply:      (data: unknown)   => post('/public/loan-application', data),
   trackApplication: (reference: string, phone: string) =>
     get(`/public/applications/${encodeURIComponent(reference.trim())}/status?phone=${encodeURIComponent(phone.trim())}`),
+  trackDashboard: (reference: string, phone: string) =>
+    post('/public/dashboard', { reference: reference.trim(), phone: phone.trim() }),
+  initiatePayment: (reference: string, phone: string, data: {
+    amount?: number; paymentMethod: 'MOBILE_MONEY' | 'CARD' | 'BANK_TRANSFER';
+    phoneNumber?: string; network?: string; cardNumber?: string; cardCvv?: string;
+    cardExpiryMonth?: string; cardExpiryYear?: string; accountNumber?: string; bankCode?: string; email?: string;
+  }) => post(`/public/applications/${encodeURIComponent(reference.trim())}/payments/initiate?phone=${encodeURIComponent(phone.trim())}`, data),
   trackComments: (reference: string, phone: string) =>
     get(`/public/applications/${encodeURIComponent(reference.trim())}/comments?phone=${encodeURIComponent(phone.trim())}`),
   listDocuments: (reference: string, phone: string) =>

@@ -104,11 +104,15 @@ public class PaymentService {
 
         try { mailService.sendPaymentConfirmation(loan, amount); } catch (Exception e) { log.warn("Notif failed", e); }
         try { smsService.sendPaymentConfirmed(loan, amount); } catch (Exception e) { log.warn("SMS failed", e); }
-        if (loan.getLoanOfficer() != null && !loan.getLoanOfficer().getId().equals(recordedBy.getId())) {
+        // recordedBy is null for system-originated payments (webhook-confirmed mobile
+        // money / bank transfer, or a public borrower-initiated payment) — still notify
+        // the loan officer, just without a "by <name>" attribution and without the
+        // no-op-if-self check that only makes sense for a human actor.
+        if (loan.getLoanOfficer() != null && (recordedBy == null || !loan.getLoanOfficer().getId().equals(recordedBy.getId()))) {
             try {
                 notifService.notifyUsers(java.util.List.of(loan.getLoanOfficer()), "Payment Received",
                     "A payment of " + loan.getCurrency() + " " + amount + " was recorded on loan "
-                        + loan.getReferenceNumber() + " by " + recordedBy.getName() + ".",
+                        + loan.getReferenceNumber() + (recordedBy != null ? " by " + recordedBy.getName() : " (automatic)") + ".",
                     "success", "/dashboard/loans/" + loan.getId());
             } catch (Exception e) { log.warn("In-app notification failed", e); }
         }
