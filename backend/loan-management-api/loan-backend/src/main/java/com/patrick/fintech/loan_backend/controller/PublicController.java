@@ -2,6 +2,8 @@ package com.patrick.fintech.loan_backend.controller;
 
 import com.patrick.fintech.loan_backend.dto.ApiResponse;
 import com.patrick.fintech.loan_backend.dto.LoanRequest;
+import com.patrick.fintech.loan_backend.dto.publicportal.BorrowerDashboardResponse;
+import com.patrick.fintech.loan_backend.dto.publicportal.DashboardSummaryResponse;
 import com.patrick.fintech.loan_backend.model.*;
 import com.patrick.fintech.loan_backend.repository.*;
 import com.patrick.fintech.loan_backend.service.*;
@@ -79,6 +81,29 @@ public class PublicController {
         return ResponseEntity.ok(ApiResponse.ok("Message received — we'll get back to you within 24 hours"));
     }
 
+
+    @GetMapping("/borrower/dashboard")
+public ResponseEntity<BorrowerDashboardResponse> borrowerDashboard(
+
+        @RequestParam String reference,
+
+        @RequestParam String phone) {
+
+    return ResponseEntity.ok(
+            loanService.getBorrowerDashboard(
+                    reference,
+                    phone));
+}
+
+@GetMapping("/borrower/summary")
+public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
+
+        @RequestParam String phone) {
+
+    return ResponseEntity.ok(
+
+            loanService.getBorrowerSummary(phone));
+}
     /**
      * Lets an applicant check their loan application status from the public
      * website using the reference number they were given at submission, plus

@@ -88,5 +88,9 @@ public class User {
         return lockedUntil != null && lockedUntil.isAfter(LocalDateTime.now());
     }
 
+
+    public String getFullName() {
+    return name;
+}
     public enum UserStatus { ACTIVE, INACTIVE, SUSPENDED, PENDING_INVITE }
 }

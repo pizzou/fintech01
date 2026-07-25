@@ -7,6 +7,7 @@ import { DashboardStats, Payment, ChartPoint, Loan } from '../../../types/index'
 import { PageSpinner } from '../../../components/ui/Skeleton';
 import { BarChart, AreaChart } from '../../../components/charts/BarChart';
 import API from '../../../services/api';
+import Link from 'next/link';
 
 const fmt = (n?: number) =>
   n == null ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
@@ -92,6 +93,19 @@ export default function ReportsPage() {
           ))}
         </div>
       </div>
+
+      {/* Regulatory reporting */}
+      <Link href="/dashboard/reports/regulatory"
+        className="flex items-center justify-between bg-[#0D1B2A] rounded-xl p-5 text-white hover:opacity-95 transition">
+        <div className="flex items-center gap-4">
+          <span className="text-2xl">🏦</span>
+          <div>
+            <p className="font-semibold text-sm">Regulatory Reporting</p>
+            <p className="text-white/60 text-xs mt-0.5">BNR portfolio reports, credit bureau exports &amp; API access for external systems</p>
+          </div>
+        </div>
+        <span className="text-white/50">→</span>
+      </Link>
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

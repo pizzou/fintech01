@@ -1,8 +1,12 @@
 package com.patrick.fintech.loan_backend.service;
 
 import com.patrick.fintech.loan_backend.dto.*;
+import com.patrick.fintech.loan_backend.dto.publicportal.BorrowerDashboardResponse;
+import com.patrick.fintech.loan_backend.dto.publicportal.DashboardSummaryResponse;
 import com.patrick.fintech.loan_backend.model.*;
 import com.patrick.fintech.loan_backend.repository.*;
+import com.patrick.fintech.loan_backend.security.HmacIndexer;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -33,6 +37,8 @@ public class LoanService {
     private final AccountingService    accountingService;
     private final BorrowerFileService  fileService;
     private final HolidayService       holidayService;
+
+    private final PaymentScheduleService paymentScheduleService;
 
     /** Used when a loan's product has no requiredDocumentTypes configured (see V23 migration) —
      *  every loan needs at least proof of identity and address on file before it can move. */
@@ -93,6 +99,121 @@ public class LoanService {
         Map.entry(Loan.LoanType.TRADE_FINANCE,  13.0),
         Map.entry(Loan.LoanType.GROUP,          14.0)
     );
+
+
+    public BorrowerDashboardResponse getBorrowerDashboard(
+        String reference,
+        String phone) {
+
+    String phoneHash = HmacIndexer.index(phone);
+
+    Loan loan = loanRepo
+            .findByReferenceNumberAndBorrower_PhoneHash(
+                    reference,
+                    phoneHash)
+            .orElseThrow(() ->
+                    new RuntimeException("Loan not found"));
+
+    return BorrowerDashboardResponse.builder()
+            .loanId(loan.getId())
+            .referenceNumber(loan.getReferenceNumber())
+            .borrowerName(loan.getBorrower().getFullName())
+            .loanOfficer(
+                    loan.getLoanOfficer() != null
+                            ? loan.getLoanOfficer().getFullName()
+                            : null)
+            .status(loan.getStatus().name())
+            .loanType(loan.getLoanType().name())
+            .principal(loan.getAmount())
+            .outstandingBalance(loan.getOutstandingBalance())
+            .totalPaid(loan.getTotalPaid())
+            .totalRepayable(loan.getTotalRepayable())
+            .nextInstallmentAmount(loan.getNextInstallmentAmount())
+            .nextPaymentDate(loan.getNextPaymentDate())
+            .maturityDate(loan.getMaturityDate())
+            .missedInstallments(loan.getMissedInstallments())
+            .daysOverdue(loan.getDaysOverdue())
+            .currency(loan.getCurrency())
+            .build();
+}
+
+
+public DashboardSummaryResponse getBorrowerSummary(String phone) {
+
+    String phoneHash = HmacIndexer.index(phone);
+
+    List<Loan> loans =
+            loanRepo.findByBorrower_PhoneHash(phoneHash);
+
+    if (loans.isEmpty()) {
+        throw new RuntimeException("Borrower not found");
+    }
+
+    int activeLoans = 0;
+    int overdueLoans = 0;
+
+    double totalBorrowed = 0;
+    double outstanding = 0;
+    double totalPaid = 0;
+
+    Loan nextLoan = null;
+
+    for (Loan loan : loans) {
+
+        totalBorrowed += loan.getAmount() == null ? 0 : loan.getAmount();
+
+        outstanding += loan.getOutstandingBalance() == null
+                ? 0
+                : loan.getOutstandingBalance();
+
+        totalPaid += loan.getTotalPaid() == null
+                ? 0
+                : loan.getTotalPaid();
+
+       if (loan.getStatus() == LoanStatus.ACTIVE) {
+    activeLoans++;
+}
+
+if (loan.getStatus() == LoanStatus.OVERDUE) {
+    overdueLoans++;
+}
+
+        if (loan.getNextPaymentDate() != null) {
+
+            if (nextLoan == null ||
+                    loan.getNextPaymentDate().isBefore(nextLoan.getNextPaymentDate())) {
+
+                nextLoan = loan;
+            }
+        }
+    }
+
+    return DashboardSummaryResponse.builder()
+
+            .totalLoans(loans.size())
+
+            .activeLoans(activeLoans)
+
+            .totalBorrowed(totalBorrowed)
+
+            .outstandingBalance(outstanding)
+
+            .totalPaid(totalPaid)
+
+            .overdueLoans(overdueLoans)
+
+            .nextPaymentAmount(
+                    nextLoan == null
+                            ? null
+                            : nextLoan.getNextInstallmentAmount())
+
+            .nextPaymentDate(
+                    nextLoan == null
+                            ? null
+                            : nextLoan.getNextPaymentDate())
+
+            .build();
+}
 
     @Transactional
     public Loan createLoan(LoanRequest req, Long organizationId, User createdBy) {
@@ -288,23 +409,58 @@ if (!unverifiedDocs.isEmpty()) {
     );
 }
         loan.setStatus(LoanStatus.ACTIVE);
-        loan.setDisbursedAt(LocalDate.now());
-        loan.setDisbursedAmount(loan.getAmount());
-        loan.setMaturityDate(LocalDate.now().plusMonths(loan.getDurationMonths()));
-        loan.setNextDueDate(LocalDate.now().plusMonths(1));
-        Loan saved = loanRepo.save(loan);
-        audit(loan.getOrganization(), officer, "LOAN_DISBURSED", "LOAN",
-              loanId.toString(), "Disbursed via " + disbursementMethod);
-        accountingService.postDisbursement(saved);
-        try { mailService.sendLoanDisbursed(saved, disbursementMethod); } catch (Exception e) { log.warn("Notif failed", e); }
-        try { smsService.sendLoanDisbursed(saved, disbursementMethod); } catch (Exception e) { log.warn("SMS failed", e); }
-        notifyOfficer(saved, officer, "Loan Disbursed",
-            "Loan " + saved.getReferenceNumber() + " (" + saved.getCurrency() + " " + saved.getDisbursedAmount()
-                + ") has been disbursed via " + disbursementMethod + ".", "success");
-        webhookService.dispatch(loan.getOrganization(), "LOAN_DISBURSED", saved);
-        return saved;
-    }
+loan.setDisbursedAt(LocalDate.now());
+loan.setDisbursedAmount(loan.getAmount());
+loan.setMaturityDate(LocalDate.now().plusMonths(loan.getDurationMonths()));
+loan.setNextDueDate(LocalDate.now().plusMonths(1));
 
+Loan saved = loanRepo.save(loan);
+
+// Generate repayment schedule
+paymentScheduleService.generateSchedule(saved);
+
+// Update next installment
+PaymentSchedule first = paymentScheduleService.getNextInstallment(saved.getId());
+
+if (first != null) {
+    saved.setNextPaymentDate(first.getDueDate());
+    saved.setNextInstallmentAmount(first.getInstallmentAmount());
+    saved.setNextDueDate(first.getDueDate());
+}
+
+saved = loanRepo.save(saved);
+
+audit(saved.getOrganization(), officer, "LOAN_DISBURSED", "LOAN",
+      loanId.toString(), "Disbursed via " + disbursementMethod);
+
+accountingService.postDisbursement(saved);
+
+try {
+    mailService.sendLoanDisbursed(saved, disbursementMethod);
+} catch (Exception e) {
+    log.warn("Notif failed", e);
+}
+
+try {
+    smsService.sendLoanDisbursed(saved, disbursementMethod);
+} catch (Exception e) {
+    log.warn("SMS failed", e);
+}
+
+notifyOfficer(
+    saved,
+    officer,
+    "Loan Disbursed",
+    "Loan " + saved.getReferenceNumber() + " (" +
+    saved.getCurrency() + " " + saved.getDisbursedAmount() +
+    ") has been disbursed via " + disbursementMethod + ".",
+    "success"
+);
+
+webhookService.dispatch(saved.getOrganization(), "LOAN_DISBURSED", saved);
+
+return saved;
+    }
     /** Notifies the loan's assigned officer in-app when someone else (a manager, another
      *  officer) changes the loan's status — a no-op if the officer isn't set or is the actor. */
     private void notifyOfficer(Loan loan, User actor, String title, String message, String type) {

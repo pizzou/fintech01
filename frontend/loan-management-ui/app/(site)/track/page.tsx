@@ -6,25 +6,92 @@ import DocumentUploadPanel from '@/components/DocumentUploadPanel';
 import axios from 'axios';
 import { toast } from '@/hooks/useToast';
 
-interface StatusStep { label: string; complete: boolean; failed: boolean; }
-interface Comment { message: string; createdAt: string; from: string; }
+interface StatusStep {
+  label: string;
+  complete: boolean;
+  failed: boolean;
+}
+
+interface Comment {
+  message: string;
+  createdAt: string;
+  from: string;
+}
+
+interface PaymentHistory {
+  paymentId: number;
+  paymentDate: string;
+  amount: number;
+  method: string;
+  status: string;
+}
+
+interface UpcomingInstallment {
+  installmentNumber: number;
+  dueDate: string;
+  installmentAmount: number;
+  principal: number;
+  interest: number;
+  status: string;
+}
+
 interface TrackResult {
-  id: number;
-  reference: string; 
-  status: string; 
-  statusLabel: string; 
-  statusSteps: StatusStep[];
-  loanType: string; 
-  amount: number; 
+  reference: string; status: string; statusLabel: string; statusSteps: StatusStep[];
+  loanType: string; amount: number; currency: string;
+  submittedDate: string; updatedDate: string; rejectionReason?: string; maritalStatus?: string;
+}
+
+interface TrackResult {
+
+  loanId: number;
+
+  referenceNumber: string;
+
+  borrowerName: string;
+
+  status: string;
+
+  loanType: string;
+
+  principal: number;
+
+  outstandingBalance: number;
+
+  totalPaid: number;
+
+  totalRepayable: number;
+
+  repaymentProgress: number;
+
   currency: string;
-  outstandingBalance?: number;
-  totalPaid?: number;
-  nextDueDate?: string;
-  nextAmountDue?: number;
-  submittedDate: string; 
-  updatedDate: string; 
-  rejectionReason?: string; 
-  maritalStatus?: string;
+
+  interestRate: number;
+
+  nextInstallmentAmount: number;
+
+  nextPaymentDate: string;
+
+  nextDueDate: string;
+
+  maturityDate: string;
+
+  missedInstallments: number;
+
+  daysOverdue: number;
+
+  loanOfficer: string;
+
+  activeLoans: number;
+
+  overdueLoans: number;
+
+  completedLoans: number;
+
+  recentPayments: PaymentHistory[];
+
+  upcomingInstallments: UpcomingInstallment[];
+
+  availablePaymentMethods: string[];
 }
 
 export default function TrackPage() {
@@ -77,11 +144,11 @@ export default function TrackPage() {
 
     try {
       const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
-      const balance = result.outstandingBalance ?? result.amount;
-      const dueAmount = result.nextAmountDue && result.nextAmountDue > 0 ? result.nextAmountDue : balance;
+      const balance = result.outstandingBalance ?? result.principal;
+      const dueAmount = result.nextInstallmentAmount && result.nextInstallmentAmount > 0 ? result.nextInstallmentAmount : balance;
       
       const payload = {
-        loanId: result.id,
+        loanId:result.loanId,
         amount: dueAmount,
         method: momoMethod,
         phoneNumber: momoPhone.trim()
@@ -152,11 +219,11 @@ export default function TrackPage() {
             <div className="flex items-start justify-between mb-6">
               <div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Reference Code</div>
-                <div className="font-mono font-bold text-gray-900 text-sm">{result.reference}</div>
+                <div className="font-mono font-bold text-gray-900 text-sm">{result.referenceNumber}</div>
               </div>
               <span className="px-3 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide"
                 style={{ backgroundColor: primary + '15', color: primary }}>
-                {result.statusLabel}
+                {result.status}
               </span>
             </div>
 
@@ -194,7 +261,7 @@ export default function TrackPage() {
       Loan Amount
     </span>
     <div className="font-bold text-gray-900 mt-1">
-      {result.currency} {fmt(result.amount)}
+      {result.currency} {fmt(result.principal)}
     </div>
   </div>
 
@@ -236,7 +303,7 @@ export default function TrackPage() {
         </span>
 
         <div className="font-bold text-blue-700 mt-1">
-          {result.currency} {fmt(result.nextAmountDue ?? 0)}
+          {result.currency} {fmt(result.nextInstallmentAmount ?? 0)}
         </div>
       </div>
 

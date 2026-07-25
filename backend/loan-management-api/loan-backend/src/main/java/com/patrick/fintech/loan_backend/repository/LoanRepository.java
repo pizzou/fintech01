@@ -54,4 +54,24 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     // Used by CollectionsService
     List<Loan> findByStatusIn(List<LoanStatus> statuses);
 
+    List<Loan> findByBorrower_PhoneHash(String phoneHash);
+
+    /**
+ * Used by the public borrower dashboard.
+ */
+Optional<Loan> findByReferenceNumberAndBorrower_PhoneHash(
+        String referenceNumber,
+        String phoneHash
+);
+
+// ---- Regulatory reporting (BNR / Credit Bureau) ----
+    @Query("SELECT l FROM Loan l WHERE l.organization.id=:orgId " +
+           "AND (:branchId IS NULL OR l.branch.id=:branchId) " +
+           "AND (:from IS NULL OR l.createdAt >= :from) " +
+           "AND (:to IS NULL OR l.createdAt < :to)")
+    List<Loan> findForRegulatoryReport(@Param("orgId") Long orgId,
+                                        @Param("branchId") Long branchId,
+                                        @Param("from") java.time.LocalDateTime from,
+                                        @Param("to") java.time.LocalDateTime to);
+
 }
