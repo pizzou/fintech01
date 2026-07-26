@@ -193,6 +193,9 @@ export const publicApi = {
     get(`/public/applications/${encodeURIComponent(reference.trim())}/comments?phone=${encodeURIComponent(phone.trim())}`),
   listDocuments: (reference: string, phone: string) =>
     get(`/public/applications/${encodeURIComponent(reference.trim())}/documents?phone=${encodeURIComponent(phone.trim())}`),
+  downloadDocument: (reference: string, phone: string, doc: 'agreement' | 'schedule' | 'receipt') =>
+    API.get(`/public/applications/${encodeURIComponent(reference.trim())}/documents/${doc}.pdf?phone=${encodeURIComponent(phone.trim())}`,
+      { responseType: 'blob' }),
   deleteDocument: (reference: string, phone: string, fileId: number) =>
     del(`/public/applications/${encodeURIComponent(reference.trim())}/documents/${fileId}?phone=${encodeURIComponent(phone.trim())}`),
   uploadDocument: (reference: string, phone: string, documentType: string, file: File | Blob, fileName?: string) => {

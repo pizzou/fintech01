@@ -33,9 +33,15 @@ interface UpcomingInstallment {
   status: string;
 }
 
+interface TimelineEvent {
+  label: string;
+  date: string;
+}
+
 // What GET /public/applications/{ref}/status returns — application-stage info.
 interface StatusResult {
   reference: string; status: string; statusLabel: string; statusSteps: StatusStep[];
+  progressSteps: StatusStep[]; timeline: TimelineEvent[];
   loanType: string; amount: number; currency: string;
   submittedDate: string; updatedDate: string; rejectionReason?: string; maritalStatus?: string;
 }
@@ -100,6 +106,7 @@ export default function TrackPage() {
   const [paying, setPaying] = useState(false);
   const [paySuccess, setPaySuccess] = useState(false);
   const [payMessage, setPayMessage] = useState('');
+  const [downloadingDoc, setDownloadingDoc] = useState<'agreement' | 'schedule' | 'receipt' | null>(null);
 
   const primary = tenant?.primaryColor ?? '#0D6B3E';
 
@@ -195,6 +202,26 @@ export default function TrackPage() {
     }
   };
 
+  const handleDownloadDoc = async (doc: 'agreement' | 'schedule' | 'receipt', label: string) => {
+    if (!result) return;
+    setDownloadingDoc(doc);
+    try {
+      const res = await publicApi.downloadDocument(result.referenceNumber || result.reference, phone.trim(), doc);
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${label}-${result.referenceNumber || result.reference}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err: any) {
+      toast('error', err.response?.data?.error || err.message || `Could not download ${label}.`);
+    } finally {
+      setDownloadingDoc(null);
+    }
+  };
+
   const fmt = (n?: number) => (n ?? 0).toLocaleString();
   const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-RW', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
   const fmtDateTime = (d?: string) => d ? new Date(d).toLocaleString('en-RW', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -265,9 +292,9 @@ export default function TrackPage() {
             {!result.borrowerName && !result.loanOfficer && <div className="mb-6" />}
 
             {/* Progress steps */}
-            <div className="flex items-center mb-8">
-              {result.statusSteps?.map((step, i) => (
-                <div key={step.label} className="flex-1 flex items-center">
+            <div className="flex items-center mb-8 flex-wrap gap-y-3">
+              {(result.progressSteps ?? result.statusSteps)?.map((step, i, arr) => (
+                <div key={step.label} className="flex-1 flex items-center min-w-[70px]">
                   <div className="flex flex-col items-center flex-1">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm"
                       style={{
@@ -278,7 +305,7 @@ export default function TrackPage() {
                     </div>
                     <div className="text-[9px] font-bold text-center text-gray-400 mt-1.5 leading-tight px-1 uppercase tracking-tight">{step.label}</div>
                   </div>
-                  {i < result.statusSteps.length - 1 && (
+                  {i < arr.length - 1 && (
                     <div className="h-0.5 flex-1 -mt-5" style={{ backgroundColor: step.complete ? primary : '#e5e7eb' }} />
                   )}
                 </div>
@@ -370,6 +397,48 @@ export default function TrackPage() {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Timeline */}
+        {result?.timeline && result.timeline.length > 0 && (
+          <div className="bg-white rounded-xl shadow-xl border border-gray-100 p-6 md:p-8 animate-fadeIn">
+            <h3 className="font-bold text-gray-900 text-sm mb-4">Timeline</h3>
+            <div className="space-y-0">
+              {result.timeline.map((ev, i) => (
+                <div key={i} className="flex gap-3 pb-4 last:pb-0">
+                  <div className="flex flex-col items-center">
+                    <div className="w-2 h-2 rounded-full mt-1.5" style={{ backgroundColor: primary }} />
+                    {i < result.timeline.length - 1 && <div className="w-px flex-1 bg-gray-200 mt-1" />}
+                  </div>
+                  <div className="pb-1">
+                    <div className="text-xs font-bold text-gray-800">{ev.label}</div>
+                    <div className="text-[10px] text-gray-400">{fmtDateTime(ev.date)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Loan documents */}
+        {result && (result.status === 'ACTIVE' || result.status === 'OVERDUE' || result.status === 'PAID' || result.status === 'CLOSED') && (
+          <div className="bg-white rounded-xl shadow-xl border border-gray-100 p-6 md:p-8 animate-fadeIn">
+            <h3 className="font-bold text-gray-900 text-sm mb-4">Loan Documents</h3>
+            <div className="space-y-3">
+              {([
+                { key: 'agreement', label: 'Loan Agreement' },
+                { key: 'schedule', label: 'Repayment Schedule' },
+                { key: 'receipt', label: 'Disbursement Receipt' },
+              ] as const).map(doc => (
+                <button key={doc.key} type="button" disabled={downloadingDoc === doc.key}
+                  onClick={() => handleDownloadDoc(doc.key, doc.label)}
+                  className="w-full flex items-center justify-between border border-gray-200 rounded-xl px-4 py-3 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
+                  <span>{doc.label}</span>
+                  <span style={{ color: primary }}>{downloadingDoc === doc.key ? 'Downloading…' : '⬇ Download PDF'}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
