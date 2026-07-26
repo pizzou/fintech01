@@ -67,8 +67,8 @@ Optional<Loan> findByReferenceNumberAndBorrower_PhoneHash(
 // ---- Regulatory reporting (BNR / Credit Bureau) ----
     @Query("SELECT l FROM Loan l WHERE l.organization.id=:orgId " +
            "AND (:branchId IS NULL OR l.branch.id=:branchId) " +
-           "AND (:from IS NULL OR l.createdAt >= :from) " +
-           "AND (:to IS NULL OR l.createdAt < :to)")
+           "AND (cast(:from as timestamp) IS NULL OR l.createdAt >= :from) " +
+           "AND (cast(:to as timestamp) IS NULL OR l.createdAt < :to)")
     List<Loan> findForRegulatoryReport(@Param("orgId") Long orgId,
                                         @Param("branchId") Long branchId,
                                         @Param("from") java.time.LocalDateTime from,

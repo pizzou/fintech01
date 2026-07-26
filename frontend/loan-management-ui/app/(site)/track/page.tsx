@@ -38,12 +38,30 @@ interface TimelineEvent {
   date: string;
 }
 
+interface DocumentRequirements {
+  required: string[];
+  missing: string[];
+  unverified: string[];
+  readyToApprove: boolean;
+  readyToDisburse: boolean;
+}
+
+interface UploadedDoc {
+  id: number;
+  documentType: string;
+  fileName: string;
+  fileSize: number;
+  uploadedAt: string;
+  verificationStatus: string;
+}
+
 // What GET /public/applications/{ref}/status returns — application-stage info.
 interface StatusResult {
   reference: string; status: string; statusLabel: string; statusSteps: StatusStep[];
   progressSteps: StatusStep[]; timeline: TimelineEvent[];
   loanType: string; amount: number; currency: string;
   submittedDate: string; updatedDate: string; rejectionReason?: string; maritalStatus?: string;
+  documentsRequired: DocumentRequirements | null;
 }
 
 // What POST /public/dashboard returns — the rich, active-loan financial view.
@@ -79,6 +97,16 @@ interface DashboardResult {
 // Merged view the page actually renders from.
 type TrackResult = StatusResult & Partial<DashboardResult>;
 
+const DOC_LABELS: Record<string, string> = {
+  NATIONAL_ID: 'National ID', PASSPORT: 'Passport', DRIVING_LICENSE: "Driving License",
+  VOTER_CARD: 'Voter Card', RESIDENCE_PERMIT: 'Residence Permit', PROOF_OF_ADDRESS: 'Proof of Address',
+  BANK_STATEMENT: 'Bank Statement', PAYSLIP: 'Payslip', EMPLOYMENT_LETTER: 'Employment Letter',
+  BUSINESS_REGISTRATION: 'Business Registration', TAX_CERTIFICATE: 'Tax Certificate',
+  COLLATERAL_DOCUMENT: 'Collateral Document', MARRIAGE_CERTIFICATE: 'Marriage Certificate',
+  SINGLE_CERTIFICATE: 'Single Status Certificate', SELFIE: 'Selfie Photo', SIGNATURE: 'Signature', OTHER: 'Other Document',
+};
+const docLabel = (t: string) => DOC_LABELS[t] ?? t.replace(/_/g, ' ');
+
 const PAY_METHODS: { key: 'MOBILE_MONEY' | 'BANK_TRANSFER' | 'CARD'; label: string; icon: string; networks?: string[] }[] = [
   { key: 'MOBILE_MONEY', label: 'MTN Mobile Money', icon: '🟨', networks: ['MTN'] },
   { key: 'MOBILE_MONEY', label: 'Airtel Money', icon: '🟥', networks: ['AIRTEL'] },
@@ -107,6 +135,9 @@ export default function TrackPage() {
   const [paySuccess, setPaySuccess] = useState(false);
   const [payMessage, setPayMessage] = useState('');
   const [downloadingDoc, setDownloadingDoc] = useState<'agreement' | 'schedule' | 'receipt' | null>(null);
+  const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([]);
+  const [uploadingType, setUploadingType] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState('');
 
   const primary = tenant?.primaryColor ?? '#0D6B3E';
 
@@ -143,6 +174,10 @@ export default function TrackPage() {
       publicApi.trackComments(ref, ph)
         .then((c) => setComments(c as Comment[]))
         .catch(() => setCommentsError(true));
+
+      publicApi.listDocuments(ref, ph)
+        .then((d) => setUploadedDocs(d as UploadedDoc[]))
+        .catch(() => setUploadedDocs([]));
     } catch (err: any) {
       setError(err.message || 'We could not find that application matching those parameters.');
     } finally {
@@ -219,6 +254,31 @@ export default function TrackPage() {
       toast('error', err.response?.data?.error || err.message || `Could not download ${label}.`);
     } finally {
       setDownloadingDoc(null);
+    }
+  };
+
+  const handleUpload = async (documentType: string, file: File) => {
+    if (!result) return;
+    setUploadingType(documentType);
+    setUploadError('');
+    const ref = result.referenceNumber || result.reference;
+    const ph = phone.trim();
+    try {
+      await publicApi.uploadDocument(ref, ph, documentType, file);
+      toast('success', `${docLabel(documentType)} uploaded — awaiting review.`);
+
+      // Refresh both the document list and the status (so the missing-docs
+      // list and 9-step tracker reflect the new upload immediately).
+      const [docs, status] = await Promise.all([
+        publicApi.listDocuments(ref, ph) as Promise<UploadedDoc[]>,
+        publicApi.trackApplication(ref, ph) as Promise<StatusResult>,
+      ]);
+      setUploadedDocs(docs);
+      setResult(prev => prev ? { ...prev, ...status } : status);
+    } catch (err: any) {
+      setUploadError(err.response?.data?.error || err.message || `Could not upload ${docLabel(documentType)}.`);
+    } finally {
+      setUploadingType(null);
     }
   };
 
@@ -397,6 +457,75 @@ export default function TrackPage() {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Documents needed / uploaded */}
+        {result?.documentsRequired && (
+          <div className="bg-white rounded-xl shadow-xl border border-gray-100 p-6 md:p-8 animate-fadeIn">
+            <h3 className="font-bold text-gray-900 text-sm mb-0.5">Required Documents</h3>
+            <p className="text-xs text-gray-400 mb-4">
+              {result.documentsRequired.missing.length > 0
+                ? "We still need the documents below before your loan can move forward."
+                : result.documentsRequired.unverified.length > 0
+                  ? "Your documents are uploaded and awaiting review by our team."
+                  : "All required documents are uploaded and verified."}
+            </p>
+
+            {uploadError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2.5 font-semibold mb-3">{uploadError}</div>
+            )}
+
+            <div className="space-y-3">
+              {result.documentsRequired.missing.map(docType => (
+                <div key={docType} className="border border-amber-200 bg-amber-50/40 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-gray-800">{docLabel(docType)}</span>
+                    <span className="text-[9px] font-bold uppercase text-amber-600">Missing</span>
+                  </div>
+                  <label className="block">
+                    <input type="file" accept="image/*,application/pdf" className="hidden"
+                      disabled={uploadingType === docType}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(docType, f); e.target.value = ''; }} />
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                      uploadingType === docType ? 'bg-gray-200 text-gray-400 cursor-wait' : 'text-white'
+                    }`} style={uploadingType === docType ? {} : { backgroundColor: primary }}>
+                      {uploadingType === docType ? 'Uploading…' : '📎 Upload File'}
+                    </span>
+                  </label>
+                </div>
+              ))}
+
+              {uploadedDocs.filter(d => !result.documentsRequired!.missing.includes(d.documentType)).map(doc => {
+                const rejected = doc.verificationStatus === 'REJECTED' || doc.verificationStatus === 'REPLACEMENT_REQUESTED';
+                const verified = doc.verificationStatus === 'VERIFIED';
+                return (
+                  <div key={doc.id} className={`border rounded-xl p-3 ${rejected ? 'border-red-200 bg-red-50/40' : 'border-gray-200'}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-gray-800">{docLabel(doc.documentType)}</span>
+                      <span className={`text-[9px] font-bold uppercase ${
+                        verified ? 'text-green-600' : rejected ? 'text-red-600' : 'text-blue-500'
+                      }`}>
+                        {verified ? 'Verified' : rejected ? 'Needs Replacement' : 'Pending Review'}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-gray-400 truncate">{doc.fileName}</div>
+                    {rejected && (
+                      <label className="block mt-2">
+                        <input type="file" accept="image/*,application/pdf" className="hidden"
+                          disabled={uploadingType === doc.documentType}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(doc.documentType, f); e.target.value = ''; }} />
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                          uploadingType === doc.documentType ? 'bg-gray-200 text-gray-400 cursor-wait' : 'bg-red-600 text-white'
+                        }`}>
+                          {uploadingType === doc.documentType ? 'Uploading…' : '📎 Upload Replacement'}
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
