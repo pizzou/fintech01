@@ -26,8 +26,5 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     long countByOrganizationAndPaidFalse(Organization org);
 
-     List<Payment> findTop10ByLoanIdOrderByPaymentDateDesc(Long loanId);
-
-    List<Payment> findByLoanIdOrderByPaymentDateDesc(Long loanId);
     List<Payment> findTop10ByLoanIdOrderByPaidDateDesc(Long loanId);
 }
