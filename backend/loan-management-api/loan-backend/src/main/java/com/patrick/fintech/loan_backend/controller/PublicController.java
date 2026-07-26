@@ -137,6 +137,9 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         result.put("updatedDate",   loan.getUpdatedAt());
         result.put("rejectionReason", loan.getStatus() == LoanStatus.REJECTED ? loan.getRejectionReason() : null);
         result.put("maritalStatus", loan.getBorrower().getMaritalStatus());
+        result.put("documentsRequired", loan.getBorrower() != null
+            ? loanService.getDocumentRequirements(loan.getId(), loan.getOrganization().getId())
+            : null);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
@@ -826,11 +829,11 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
     private List<Map<String,Object>> buildProducts() {
         List<Map<String,Object>> products = new ArrayList<>();
         String[][] defaults = {
-            {"Personal Loan",     "👤","10","10000000","36","Fast personal financing for any purpose"},
+            {"Personal Loan",     "👤","15","5000000","36","Fast personal financing for any purpose"},
             {"Business Loan",     "🏢","12","50000000","60","Working capital and business expansion"},
-            {"Agricultural Loan", "🌾","10", "10000000","24","Seasonal farming and agribusiness finance"},
+            {"Agricultural Loan", "🌾","9", "10000000","24","Seasonal farming and agribusiness finance"},
             {"SME Finance",       "📦","11","30000000","48","Tailored finance for small businesses"},
-            {"Salary Advance",    "💵","10", "2000000", "3", "Quick advance on your monthly salary"},
+            {"Salary Advance",    "💵","5", "2000000", "3", "Quick advance on your monthly salary"},
             {"Microfinance",      "💡","18","500000",  "12","Small loans for micro-entrepreneurs"},
         };
         for (String[] p : defaults) {
