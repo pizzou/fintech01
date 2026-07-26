@@ -84,12 +84,14 @@ function BnrTab() {
   const [branches, setBranches] = useState<BreakdownRow[]>([]);
   const [gender, setGender] = useState<BreakdownRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [exporting, setExporting] = useState(false);
 
   const params = { period, from: period === 'CUSTOM' ? from : undefined, to: period === 'CUSTOM' ? to : undefined };
 
   const load = () => {
     setLoading(true);
+    setLoadError('');
     Promise.all([
       regulatoryApi.bnrSummary(params),
       regulatoryApi.bnrByLoanType(params),
@@ -100,7 +102,10 @@ function BnrTab() {
       setLoanTypes(lt as BreakdownRow[]);
       setBranches(b as BreakdownRow[]);
       setGender(g as BreakdownRow[]);
-    }).catch(console.error).finally(() => setLoading(false));
+    }).catch((e) => {
+      console.error(e);
+      setLoadError(e?.response?.data?.error || e?.message || 'Could not load BNR reports.');
+    }).finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [period]);
@@ -150,7 +155,14 @@ function BnrTab() {
         </div>
       </div>
 
-      {loading || !summary ? <PageSpinner /> : (
+      {loading ? <PageSpinner /> : loadError ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
+          <p className="text-red-700 text-sm font-semibold mb-3">{loadError}</p>
+          <Button size="sm" variant="secondary" onClick={load}>Try Again</Button>
+        </div>
+      ) : !summary ? (
+        <p className="text-sm text-gray-400 text-center py-8">No data available.</p>
+      ) : (
         <>
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
@@ -243,15 +255,20 @@ function BreakdownTable({ rows, currency }: { rows: BreakdownRow[]; currency: st
 function CreditBureauTab({ isAdmin }: { isAdmin: boolean }) {
   const [records, setRecords] = useState<CreditRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
   const load = () => {
     setLoading(true);
+    setLoadError('');
     regulatoryApi.creditBureauPreview({ from: from || undefined, to: to || undefined })
       .then(r => setRecords(r as CreditRecord[]))
-      .catch(console.error).finally(() => setLoading(false));
+      .catch((e) => {
+        console.error(e);
+        setLoadError(e?.response?.data?.error || e?.message || 'Could not load credit bureau records.');
+      }).finally(() => setLoading(false));
   };
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
@@ -287,7 +304,12 @@ function CreditBureauTab({ isAdmin }: { isAdmin: boolean }) {
         </div>
       </div>
 
-      {loading ? <PageSpinner /> : (
+      {loading ? <PageSpinner /> : loadError ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
+          <p className="text-red-700 text-sm font-semibold mb-3">{loadError}</p>
+          <Button size="sm" variant="secondary" onClick={load}>Try Again</Button>
+        </div>
+      ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -326,6 +348,7 @@ function CreditBureauTab({ isAdmin }: { isAdmin: boolean }) {
 function ApiKeysTab() {
   const [clients, setClients] = useState<ApiClient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [newKey, setNewKey] = useState<{ apiKey: string; client: ApiClient } | null>(null);
   const [form, setForm] = useState({ name: '', clientType: 'BNR' as 'BNR' | 'CREDIT_BUREAU', contactEmail: '', description: '' });
@@ -333,7 +356,11 @@ function ApiKeysTab() {
 
   const load = () => {
     setLoading(true);
-    regulatoryApi.listApiClients().then(r => setClients(r as ApiClient[])).catch(console.error).finally(() => setLoading(false));
+    setLoadError('');
+    regulatoryApi.listApiClients().then(r => setClients(r as ApiClient[])).catch((e) => {
+      console.error(e);
+      setLoadError(e?.response?.data?.error || e?.message || 'Could not load API keys.');
+    }).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
 
@@ -366,7 +393,12 @@ function ApiKeysTab() {
         <Button onClick={() => setShowCreate(true)}>+ New API Key</Button>
       </div>
 
-      {loading ? <PageSpinner /> : (
+      {loading ? <PageSpinner /> : loadError ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
+          <p className="text-red-700 text-sm font-semibold mb-3">{loadError}</p>
+          <Button size="sm" variant="secondary" onClick={load}>Try Again</Button>
+        </div>
+      ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
