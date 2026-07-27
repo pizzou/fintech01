@@ -186,6 +186,7 @@ export default function LoanDetailPage() {
     n: `#${p.installmentNumber}`, balance: p.outstandingAfter ?? 0,
     principal: p.principalComponent, interest: p.interestComponent,
   }));
+  const totalPenalty = schedule.reduce((sum, p) => sum + (p.penalty ?? 0), 0);
 
   return (
     <div>
@@ -232,7 +233,7 @@ export default function LoanDetailPage() {
           ['Disbursed',   fc(loan.disbursedAmount),     '💸', '#8B5CF6'],
           ['Total Paid',  fc(loan.totalPaid),           '✅', '#0D9488'],
           ['Outstanding', fc(loan.outstandingBalance),  '⏳', '#F59E0B'],
-          ['Penalty',     fc(loan.processingFee),       '📋', '#6B7280'],
+         ['Penalty', fc(totalPenalty), '📋', '#6B7280'],
         ].map(([label, value, icon, color]) => (
           <div key={label as string} className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="text-lg mb-1">{icon}</div>
