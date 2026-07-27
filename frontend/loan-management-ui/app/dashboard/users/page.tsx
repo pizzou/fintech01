@@ -11,6 +11,7 @@ interface UserRow {
   email: string;
   role?: { id: number; name: string };
   organization?: { id: number; name: string };
+  mustChangePassword?: boolean;
 }
 
 const ROLE_BADGE: Record<string, string> = {
@@ -37,7 +38,6 @@ export default function UsersPage() {
 
   const [name,      setName]      = useState('');
   const [email,     setEmail]     = useState('');
-  const [password,  setPassword]  = useState('');
   const [role,      setRole]      = useState('LOAN_OFFICER');
   const [saving,    setSaving]    = useState(false);
   const [errors,    setErrors]    = useState<Record<string, string>>({});
@@ -71,8 +71,6 @@ export default function UsersPage() {
     if (!name.trim()) e.name = 'Name is required';
     if (!email.trim()) e.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'Invalid email';
-    if (!password) e.password = 'Password is required';
-    else if (password.length < 6) e.password = 'Min 6 characters';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -82,9 +80,9 @@ export default function UsersPage() {
     if (!validate()) return;
     setSaving(true);
     try {
-      await post('/users', { name, email, password, role });
-      toast('success', name + ' created successfully');
-      setName(''); setEmail(''); setPassword(''); setRole('LOAN_OFFICER');
+      await post('/users', { name, email, role });
+      toast('success', `${name} created — login details have been emailed to them`);
+      setName(''); setEmail(''); setRole('LOAN_OFFICER');
       setShowCreate(false);
       load();
     } catch (err: unknown) {
@@ -94,13 +92,18 @@ export default function UsersPage() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPw || newPw.length < 6) { toast('error', 'Min 6 characters'); return; }
+    if (newPw.length < 10) { toast('error', 'Password must be at least 10 characters'); return; }
+    if (!/[A-Z]/.test(newPw) || !/[a-z]/.test(newPw) || !/[0-9]/.test(newPw) || !/[^A-Za-z0-9]/.test(newPw)) {
+      toast('error', 'Password needs an uppercase letter, a lowercase letter, a digit, and a special character');
+      return;
+    }
     if (newPw !== cfPw) { toast('error', 'Passwords do not match'); return; }
     setResetting(true);
     try {
-      await post('/users/' + resetUserId + '/reset-password', { newPassword: newPw });
-      toast('success', 'Password reset successfully');
+      await put('/users/' + resetUserId, { password: newPw });
+      toast('success', 'Password reset — they\'ll be asked to set their own on next login');
       setResetUserId(null); setNewPw(''); setCfPw('');
+      load();
     } catch (err: unknown) {
       toast('error', getMsg(err));
     } finally { setResetting(false); }
@@ -157,7 +160,14 @@ export default function UsersPage() {
                       <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
                         {u.name?.[0]?.toUpperCase() ?? '?'}
                       </div>
-                      <span className="font-medium text-gray-800">{u.name ?? '—'}</span>
+                      <div>
+                        <span className="font-medium text-gray-800">{u.name ?? '—'}</span>
+                        {u.mustChangePassword && (
+                          <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 align-middle">
+                            Pending first login
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-5 py-4 text-gray-500">{u.email}</td>
@@ -226,18 +236,16 @@ export default function UsersPage() {
                 {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="Min 6 characters" className={inputCls(errors.password)} />
-                {errors.password && <p className="text-xs text-red-600 mt-1">{errors.password}</p>}
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
                 <select value={role} onChange={e => setRole(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                   {ROLES.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
                 </select>
               </div>
+              <p className="text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded-lg p-3">
+                We'll generate a secure temporary password and email it to this address, along with a sign-in link.
+                They'll be required to set their own password the first time they log in.
+              </p>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={saving}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-medium transition">
@@ -262,10 +270,13 @@ export default function UsersPage() {
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none">x</button>
             </div>
             <form onSubmit={handleResetPassword} className="p-6 space-y-4">
+              <p className="text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded-lg p-3">
+                They'll be required to set their own password the next time they log in.
+              </p>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
                 <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
-                  placeholder="Min 6 characters" className={inputCls()} />
+                  placeholder="10+ chars, upper, lower, digit, symbol" className={inputCls()} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
