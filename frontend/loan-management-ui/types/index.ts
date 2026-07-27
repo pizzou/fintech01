@@ -121,7 +121,7 @@ export interface Loan {
   status:                LoanStatus;
   amount:                number;
   interestRate:          number;
-  interestRateType?:     'MONTHLY';
+  interestRateType?:     'ANNUAL' | 'MONTHLY';
   durationMonths:        number;
   currency:              string;
   processingFee?:        number;

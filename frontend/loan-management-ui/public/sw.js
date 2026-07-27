@@ -18,6 +18,10 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+self.addEventListener('online', () => {
+  console.log('Internet restored');
+});
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -54,9 +58,6 @@ self.addEventListener('fetch', (event) => {
           if (request.mode === 'navigate') {
             return caches.match('/offline.html');
           }
-          self.addEventListener("online", () => {
-    console.log("Internet restored");
-});
           return new Response(JSON.stringify({ success: false, error: 'You are offline' }), {
             status: 503,
             headers: { 'Content-Type': 'application/json' },

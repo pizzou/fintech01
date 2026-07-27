@@ -13,7 +13,8 @@ interface Product {
   description?: string;
   loanType: string;
   interestRate: number;
-  interestRateType: 'MONTHLY';
+  interestRateType: 'ANNUAL' | 'MONTHLY';
+  minInterestRate?: number | null;
   minAmount: number;
   maxAmount: number | null;
   minTermMonths: number;
@@ -30,7 +31,7 @@ const LOAN_TYPES = [
 
 const emptyForm = (): Partial<Product> => ({
   name: '', icon: '💰', description: '', loanType: 'PERSONAL',
-  interestRate: 10, interestRateType: 'MONTHLY', minAmount: 500000, maxAmount: 100000000,
+  interestRate: 10, interestRateType: 'ANNUAL', minAmount: 500000, maxAmount: 100000000,
   minTermMonths: 1, maxTermMonths: 12, processingFeePercent: 2, active: true,
 });
 
@@ -112,7 +113,7 @@ export default function LoanProductsPage() {
                 <tr key={p.id} className={`hover:bg-gray-50 ${!p.active ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3 font-medium text-gray-800">{p.icon} {p.name}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{p.loanType.replace('_', ' ')}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{p.interestRate}%<span className="text-gray-400 font-normal text-xs"> /mo</span></td>
+                  <td className="px-4 py-3 text-right font-semibold">{p.interestRate}%<span className="text-gray-400 font-normal text-xs"> {p.interestRateType === 'MONTHLY' ? '/mo' : 'p.a.'}</span></td>
                   <td className="px-4 py-3 text-right text-gray-600 text-xs">
                     {p.minAmount.toLocaleString()} – {p.maxAmount !== null ? p.maxAmount.toLocaleString() : <span className="text-teal-600 font-semibold">Unlimited</span>}
                   </td>
@@ -157,13 +158,31 @@ export default function LoanProductsPage() {
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-gray-500">
-                Interest Rate (% per month)
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-gray-500">
+                  Interest Rate ({editing.interestRateType === 'MONTHLY' ? '% per month' : '% p.a.'})
+                </label>
+                <div className="flex rounded-md border border-gray-300 overflow-hidden text-xs font-semibold">
+                  <button type="button"
+                    onClick={() => setEditing({ ...editing, interestRateType: 'ANNUAL' })}
+                    className={`px-2 py-0.5 transition-colors ${
+                      (editing.interestRateType ?? 'ANNUAL') === 'ANNUAL' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    p.a.
+                  </button>
+                  <button type="button"
+                    onClick={() => setEditing({ ...editing, interestRateType: 'MONTHLY' })}
+                    className={`px-2 py-0.5 border-l border-gray-300 transition-colors ${
+                      editing.interestRateType === 'MONTHLY' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    per month
+                  </button>
+                </div>
+              </div>
               <input type="number" step="0.1" className="w-full border border-gray-300 rounded-lg p-2 text-sm mt-1"
                 value={editing.interestRate ?? 0} onChange={(e) => setEditing({ ...editing, interestRate: Number(e.target.value) })} />
               <div className="flex gap-1.5 mt-1.5">
-                {[6, 8, 10].map(r => (
+                {(editing.interestRateType === 'MONTHLY' ? [6, 8, 10] : [10, 12, 15]).map(r => (
                   <button key={r} type="button"
                     onClick={() => setEditing({ ...editing, interestRate: r })}
                     className={`text-xs px-2.5 py-1 rounded border font-semibold transition-colors
@@ -171,6 +190,18 @@ export default function LoanProductsPage() {
                     {r}%
                   </button>
                 ))}
+              </div>
+              <div className="mt-2">
+                <label className="text-xs font-semibold text-gray-500">
+                  Negotiable down to (optional)
+                </label>
+                <input type="number" step="0.1" min="0" placeholder="Not negotiable — approve at listed rate only"
+                  className="w-full border border-gray-300 rounded-lg p-2 text-sm mt-1"
+                  value={editing.minInterestRate ?? ''}
+                  onChange={(e) => setEditing({ ...editing, minInterestRate: e.target.value === '' ? null : Number(e.target.value) })} />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Lets a loan officer approve this product below the listed rate, down to this floor — e.g. 10% advertised, 6% floor for negotiated deals. Leave blank if the rate isn&apos;t negotiable.
+                </p>
               </div>
             </div>
 
