@@ -408,7 +408,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         add.accept("Reference Number", loan.getReferenceNumber());
         add.accept("Loan Type", loan.getLoanType());
         add.accept("Principal Amount", loan.getCurrency() + " " + loan.getAmount());
-        add.accept("Interest Rate", loan.getInterestRate() + "% " + loan.getInterestRateType());
+        add.accept("Interest Rate", loan.getInterestRate() + "% per month");
         add.accept("Duration", loan.getDurationMonths() + " months");
         add.accept("Repayment Frequency", loan.getRepaymentFrequency());
         add.accept("Total Repayable", loan.getCurrency() + " " + loan.getTotalRepayable());
@@ -630,6 +630,10 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
      * Finds-or-creates the borrower, creates a PENDING loan for staff to
      * review, notifies the org's staff in-app, and confirms to the applicant
      * by SMS — all fully persisted (this used to only log to the console).
+     *
+     * Required fields: phone, firstName, amount, email, gender, maritalStatus,
+     * and nationalId (must be exactly 16 digits). All are validated up-front
+     * before any borrower record is touched.
      */
         @PostMapping("/loan-application")
     @Transactional
@@ -653,10 +657,26 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         Double amount = num(body.get("amount"));
         if (amount == null || amount <= 0) throw new RuntimeException("Loan amount is required");
 
+        // --- Mandatory applicant identity fields ---
+        String inputEmail = str(body.get("email"));
+        if (inputEmail == null || inputEmail.isBlank()) throw new RuntimeException("Email is required");
+
+        String gender = str(body.get("gender"));
+        if (gender == null || gender.isBlank()) throw new RuntimeException("Gender is required");
+
+        String maritalStatus = str(body.get("maritalStatus"));
+        if (maritalStatus == null || maritalStatus.isBlank()) throw new RuntimeException("Marital status is required");
+
+        String nationalId = str(body.get("nationalId"));
+        if (nationalId == null || !nationalId.trim().matches("\\d{16}")) {
+            throw new RuntimeException("National ID is required and must be exactly 16 digits");
+        }
+        nationalId = nationalId.trim();
+        // --- end mandatory applicant identity fields ---
+
         boolean acceptedTerms = body.get("acceptedTerms") != null && Boolean.parseBoolean(body.get("acceptedTerms").toString());
         if (!acceptedTerms) throw new RuntimeException("You must accept the Terms & Conditions to submit an application");
 
-        String maritalStatus = str(body.get("maritalStatus"));
         if ("Married".equalsIgnoreCase(maritalStatus) && (str(body.get("spouseFullName")) == null)) {
             throw new RuntimeException("Spouse's full name is required for married applicants");
         }
@@ -672,17 +692,11 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         borrower.setFirstName(firstName);
         borrower.setLastName(str(body.get("lastName")));
         borrower.setPhone(phone);
-        
-        // 🔑 CRUCIAL: Intentionally enforce mapping your input email parameter value to the profile
-        String inputEmail = str(body.get("email"));
-        if (inputEmail != null && !inputEmail.isBlank()) {
-            borrower.setEmail(inputEmail.trim());
-        }
-        
-        borrower.setNationalId(str(body.get("nationalId")));
+        borrower.setEmail(inputEmail.trim());
+        borrower.setNationalId(nationalId);
         borrower.setDateOfBirth(date(body.get("dateOfBirth")));
-        borrower.setGender(str(body.get("gender")));
-        borrower.setMaritalStatus(str(body.get("maritalStatus")));
+        borrower.setGender(gender);
+        borrower.setMaritalStatus(maritalStatus);
         borrower.setSingleCertificateNumber(str(body.get("singleCertificateNumber")));
         borrower.setSpouseFullName(str(body.get("spouseFullName")));
         borrower.setSpouseNationalId(str(body.get("spouseNationalId")));
@@ -721,22 +735,15 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
 
         Loan loan = loanService.createLoan(req, org.getId(), null);
         loan.setTermsAcceptedAt(LocalDateTime.now());
-        
-        // Explicitly guarantee the borrower entity reference holds the input email details before database execution
-        if (loan.getBorrower() != null && (loan.getBorrower().getEmail() == null || loan.getBorrower().getEmail().isBlank())) {
-            loan.getBorrower().setEmail(inputEmail);
-        }
-        
         loan = loanRepo.save(loan);
 
         notifyStaff(org, borrower, loan);
 
-        // 🔥 CRUCIAL REPAIR: Loud error tracing tracking instead of generic silent catch logging
-        try { 
-            mailService.sendApplicationReceived(loan); 
+        try {
+            mailService.sendApplicationReceived(loan);
             log.info("[EMAIL SUCCESS] Dispatched application received alert to: {}", borrower.getEmail());
-        } catch (Exception e) { 
-            log.error("[EMAIL CRITICAL FAILURE] Outbound loan receipt transmission failed line error trace:", e); 
+        } catch (Exception e) {
+            log.error("[EMAIL CRITICAL FAILURE] Outbound loan receipt transmission failed line error trace:", e);
         }
 
         try {
@@ -774,7 +781,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
                 Map<String,Object> m = new LinkedHashMap<>();
                 m.put("title", p.getName());
                 m.put("icon", p.getIcon() != null ? p.getIcon() : "💰");
-                m.put("rate", (p.getInterestRate() != null ? p.getInterestRate() : 0) + "%");
+                m.put("rate", (p.getInterestRate() != null ? p.getInterestRate() : 0) + "% / month");
                 m.put("maxAmount", p.getMaxAmount() != null ? String.valueOf(p.getMaxAmount().longValue()) : "Unlimited");
                 m.put("term", "up to " + p.getMaxTermMonths() + " months");
                 m.put("description", p.getDescription() != null ? p.getDescription() : "");
@@ -829,17 +836,17 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
     private List<Map<String,Object>> buildProducts() {
         List<Map<String,Object>> products = new ArrayList<>();
         String[][] defaults = {
-            {"Personal Loan",     "👤","15","5000000","36","Fast personal financing for any purpose"},
+            {"Personal Loan",     "👤","10","5000000","36","Fast personal financing for any purpose"},
             {"Business Loan",     "🏢","12","50000000","60","Working capital and business expansion"},
             {"Agricultural Loan", "🌾","9", "10000000","24","Seasonal farming and agribusiness finance"},
             {"SME Finance",       "📦","11","30000000","48","Tailored finance for small businesses"},
-            {"Salary Advance",    "💵","5", "2000000", "3", "Quick advance on your monthly salary"},
+            {"Salary Advance",    "💵","10", "2000000", "3", "Quick advance on your monthly salary"},
             {"Microfinance",      "💡","18","500000",  "12","Small loans for micro-entrepreneurs"},
         };
         for (String[] p : defaults) {
             Map<String,Object> m = new LinkedHashMap<>();
             m.put("title",       p[0]); m.put("icon",        p[1]);
-            m.put("rate",        p[2]+"%"); m.put("maxAmount", p[3]);
+            m.put("rate",        p[2]+"% / month"); m.put("maxAmount", p[3]);
             m.put("term",        "up to "+p[4]+" months"); m.put("description", p[5]);
             products.add(m);
         }
