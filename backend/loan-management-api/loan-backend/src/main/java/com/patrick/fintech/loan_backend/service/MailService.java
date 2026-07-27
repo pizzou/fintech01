@@ -186,6 +186,49 @@ public class MailService {
             "<p>If you did not request a password reset, please ignore this email.</p>");
     }
 
+    /** Sent alongside (never instead of) the SMS OTP — the email carries the clickable
+     *  signing link; the OTP that actually completes the signature still only ever goes
+     *  to the phone number on file, so this doesn't weaken the verification model. */
+    @Async
+    public void sendESignatureRequest(Borrower borrower, String orgName, String signLink) {
+        if (!mailEnabled) {
+            log.info("[EMAIL] E-signature link for {}: {}", borrower.getEmail(), signLink);
+            return;
+        }
+        if (borrower.getEmail() == null || borrower.getEmail().isBlank()) return;
+        send(borrower.getEmail(), "Your Loan Agreement Is Ready to Sign",
+            "<h2>Loan Agreement Ready for Signature</h2>" +
+            "<p>Dear " + borrower.getFullName() + ",</p>" +
+            "<p>" + orgName + " has sent your loan agreement for e-signature. Click below to review and sign it.</p>" +
+            "<p><a href=\"" + signLink + "\" style=\"background:#0D9488;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;\">Review &amp; Sign</a></p>" +
+            "<p>We've also texted a verification code to your phone — you'll need to enter it on that page to complete your signature.</p>" +
+            "<p>This link expires in 7 days. If you weren't expecting this, please contact your loan officer.</p>");
+    }
+
+    /** Sent once, at account creation, when an admin adds a new staff member. Contains
+     *  the system-generated temporary password in plain text — this is the one and only
+     *  time it exists outside its bcrypt hash, so this email is the account's sole
+     *  recovery path if the recipient doesn't act on it immediately. The account is
+     *  flagged mustChangePassword=true, so whoever reads this can only use it once to
+     *  log in and is then required to set a password only they know. */
+    @Async
+    public void sendNewUserCredentials(User user, String tempPassword, String loginLink) {
+        if (!mailEnabled) {
+            log.info("[EMAIL] New account for {}: temp password {}", user.getEmail(), tempPassword);
+            return;
+        }
+        send(user.getEmail(), "Your LoanSaaS Pro Account Has Been Created",
+            "<h2>Welcome to LoanSaaS Pro</h2>" +
+            "<p>Hi " + (user.getName() != null ? user.getName() : "") + ",</p>" +
+            "<p>An administrator" + (user.getOrganization() != null ? " at " + user.getOrganization().getName() : "") +
+            " created a staff account for you" + (user.getRole() != null ? " with the role <strong>" + user.getRole().getName() + "</strong>" : "") + ".</p>" +
+            "<p><strong>Email:</strong> " + user.getEmail() + "<br/>" +
+            "<strong>Temporary password:</strong> <code style=\"background:#f3f4f6;padding:2px 8px;border-radius:4px;font-size:15px;\">" + tempPassword + "</code></p>" +
+            "<p><a href=\"" + loginLink + "\" style=\"background:#0D9488;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;\">Sign In</a></p>" +
+            "<p>You'll be asked to set your own password the first time you sign in — the temporary one above will stop working once you do.</p>" +
+            "<p>If you weren't expecting this account, please contact your administrator.</p>");
+    }
+
     @Async
     public void sendBorrowerWelcome(Borrower borrower) {
         if (!mailEnabled) {

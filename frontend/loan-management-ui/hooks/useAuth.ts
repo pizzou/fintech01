@@ -12,13 +12,14 @@ interface AuthCtx {
   isOfficer: boolean;
   currency: string;
   locale: string;
+  mustChangePassword: boolean;
 }
 
 export const AuthContext = createContext<AuthCtx>({
   user: null, token: null,
   login: () => {}, logout: () => {},
   loading: true, isAdmin: false, isOfficer: false,
-  currency: 'USD', locale: 'en-US',
+  currency: 'USD', locale: 'en-US', mustChangePassword: false,
 });
 
 export function useAuth() { return useContext(AuthContext); }
@@ -63,5 +64,6 @@ export function useAuthState() {
     isOfficer: ['ADMIN','LOAN_OFFICER','CREDIT_ANALYST','MANAGER'].includes(user?.role || ''),
     currency:  user?.currency  || 'USD',
     locale:    user?.locale    || 'en-US',
+    mustChangePassword: !!user?.mustChangePassword,
   };
 }

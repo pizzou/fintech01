@@ -48,6 +48,13 @@ public class User {
 
     private boolean twoFactorEnabled;
 
+    /** True right after an admin creates this account with a system-generated password —
+     *  forces the user through a mandatory password change before they can use the rest
+     *  of the app. Cleared automatically the first time they successfully set their own
+     *  password (see UserService.changeOwnPassword). */
+    @Builder.Default
+    private boolean mustChangePassword = false;
+
     @JsonIgnore
     private String twoFactorSecret;
 

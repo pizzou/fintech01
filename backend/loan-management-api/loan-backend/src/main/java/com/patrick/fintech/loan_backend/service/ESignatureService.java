@@ -37,7 +37,11 @@ public class ESignatureService {
     private final ESignatureRequestRepository esignRepo;
     private final LoanRepository loanRepo;
     private final SmsService smsService;
+    private final MailService mailService;
     private final AuditService auditService;
+
+    @org.springframework.beans.factory.annotation.Value("${app.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
@@ -53,6 +57,7 @@ public class ESignatureService {
         String token = UUID.randomUUID().toString().replace("-", "");
         String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
         String docText = renderAgreement(loan, borrower);
+        String signLink = frontendUrl + "/sign/" + token;
 
         ESignatureRequest req = ESignatureRequest.builder()
             .loan(loan).borrower(borrower).organization(loan.getOrganization())
@@ -73,11 +78,16 @@ public class ESignatureService {
         req = esignRepo.save(req);
 
         smsService.sendCustom(borrower.getPhone(),
-            String.format("%s: Your loan agreement is ready to sign. Verification code: %s (valid 7 days). " +
-                "Reply to your loan officer if you did not request this.", orgName(loan), otp));
+            String.format("%s: Sign your loan agreement here: %s Verification code: %s (valid 7 days). " +
+                "Reply to your loan officer if you did not request this.", orgName(loan), signLink, otp));
+
+        if (borrower.getEmail() != null && !borrower.getEmail().isBlank()) {
+            mailService.sendESignatureRequest(borrower, orgName(loan), signLink);
+        }
 
         auditService.log(loan.getOrganization(), null, "ESIGNATURE_INITIATED", "LOAN",
-            String.valueOf(loanId), "E-signature request created for " + req.getDocumentType() + " by " + initiatedBy);
+            String.valueOf(loanId), "E-signature request created for " + req.getDocumentType() + " by " + initiatedBy
+                + (borrower.getEmail() != null && !borrower.getEmail().isBlank() ? " (link emailed + OTP texted)" : " (OTP texted, no email on file)"));
 
         return req;
     }
@@ -86,12 +96,16 @@ public class ESignatureService {
     public ESignatureRequest resendOtp(String token) {
         ESignatureRequest req = getActiveByToken(token);
         String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
+        String signLink = frontendUrl + "/sign/" + token;
         req.setOtpCodeHash(sha256(otp));
         req.setOtpSentAt(LocalDateTime.now());
         req.setOtpAttempts(0);
         esignRepo.save(req);
         smsService.sendCustom(req.getBorrower().getPhone(),
-            String.format("%s: Your new signing code is %s.", orgName(req.getLoan()), otp));
+            String.format("%s: Sign here: %s New verification code: %s.", orgName(req.getLoan()), signLink, otp));
+        if (req.getBorrower().getEmail() != null && !req.getBorrower().getEmail().isBlank()) {
+            mailService.sendESignatureRequest(req.getBorrower(), orgName(req.getLoan()), signLink);
+        }
         return req;
     }
 

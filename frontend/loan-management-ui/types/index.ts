@@ -216,6 +216,7 @@ export interface AuthResponse {
   currency:         string;
   locale:           string;
   timezone:         string;
+  mustChangePassword?: boolean;
 }
 
 export interface WebhookEndpoint {

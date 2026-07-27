@@ -164,6 +164,7 @@ public class AuthController {
         m.put("userId",u.getId()); m.put("name",u.getName()); m.put("email",u.getEmail());
         m.put("role",u.getRole()!=null?u.getRole().getName():null);
         m.put("twoFactorEnabled",u.isTwoFactorEnabled());
+        m.put("mustChangePassword",u.isMustChangePassword());
         if(u.getOrganization()!=null) {
             m.put("organizationId",u.getOrganization().getId());
             m.put("organizationName",u.getOrganization().getName());

@@ -32,11 +32,11 @@ public class UserController {
     public ResponseEntity<ApiResponse<Map<String,Object>>> create(@RequestBody RegisterRequest req) {
         if (req.getOrganizationId() == null)
             req.setOrganizationId(currentUserUtil.getCurrentOrganizationId());
-        User user = authService.register(req);
+        User user = authService.registerByAdmin(req);
         auditService.log(user.getOrganization(), currentUserUtil.getCurrentUser(), "USER_CREATED", "USER",
-            String.valueOf(user.getId()), "Created user " + user.getName() + " (" + user.getEmail() + ")",
+            String.valueOf(user.getId()), "Created user " + user.getName() + " (" + user.getEmail() + ") — credentials emailed",
             null, null, "User Management");
-        return ResponseEntity.ok(ApiResponse.ok("User created", safeUser(user)));
+        return ResponseEntity.ok(ApiResponse.ok("User created — login details have been emailed to them", safeUser(user)));
     }
 
     @GetMapping
@@ -150,6 +150,7 @@ public class UserController {
             ? Map.of("id", u.getRole().getId(), "name", u.getRole().getName()) : null);
         m.put("organization", u.getOrganization() != null
             ? Map.of("id", u.getOrganization().getId(), "name", u.getOrganization().getName()) : null);
+        m.put("mustChangePassword", u.isMustChangePassword());
         return m;
     }
 }

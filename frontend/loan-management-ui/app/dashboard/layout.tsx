@@ -5,6 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import { AuthContext, useAuthState } from '@/hooks/useAuth';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 import { OfflineProvider } from '@/components/OfflineProvider';
+import ForcedPasswordChange from '@/components/ForcedPasswordChange';
 
 const authHeader = (): Record<string, string> => {
   if (typeof window === 'undefined') return {};
@@ -32,6 +33,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   if (!auth.user) return null;
+
+  // Account still has a system-generated (or admin-reset) password — block everything
+  // else until they set their own. AuthContext.Provider still wraps this so the form
+  // can read/update the same auth state the rest of the app uses.
+  if (auth.mustChangePassword) {
+    return (
+      <AuthContext.Provider value={auth}>
+        <ForcedPasswordChange />
+        <ToastContainer />
+      </AuthContext.Provider>
+    );
+  }
 
   return (
     <AuthContext.Provider value={auth}>

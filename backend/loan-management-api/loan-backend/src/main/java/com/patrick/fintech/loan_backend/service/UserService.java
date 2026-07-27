@@ -72,6 +72,7 @@ public class UserService {
         User user = getById(id);
         com.patrick.fintech.loan_backend.security.PasswordPolicy.validate(newPassword);
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(true);
         return userRepository.save(user);
     }
 
@@ -84,6 +85,7 @@ public class UserService {
             throw new RuntimeException("Current password is incorrect");
         com.patrick.fintech.loan_backend.security.PasswordPolicy.validate(newPassword);
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(false);
         return userRepository.save(user);
     }
 
