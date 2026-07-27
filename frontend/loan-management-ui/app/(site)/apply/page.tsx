@@ -121,7 +121,7 @@ export default function ApplyPage() {
     <div className="min-h-screen flex items-center justify-center px-4 py-20">
       <div className="max-w-xl w-full text-center">
         <div className="w-24 h-24 rounded-full flex items-center justify-center text-5xl mx-auto mb-6 shadow-xl"
-          style={{ backgroundColor: primary + '15' }}>
+          style={{ backgroundColor: primary + '10' }}>
           {queuedOffline ? '📡' : (docsComplete ? '🎉' : '📎')}
         </div>
         <h2 className="text-3xl font-extrabold text-gray-900 mb-4">
