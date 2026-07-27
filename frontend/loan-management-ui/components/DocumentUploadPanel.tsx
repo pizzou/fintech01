@@ -33,7 +33,7 @@ function requiredDocsFor(maritalStatus?: string): RequiredDoc[] {
   } else {
     docs.push({ type: 'SINGLE_CERTIFICATE', label: 'Single Status Certificate', count: 1, accept: 'image/*,application/pdf' });
   }
-  docs.push({ type: 'BANK_STATEMENT', label: 'Bank Statements (last 3 months)', count: 3, accept: 'image/*,application/pdf' });
+  docs.push({ type: 'BANK_STATEMENT', label: 'Bank Statements (last 3 months)', count: 1, accept: 'image/*,application/pdf' });
   docs.push({ type: 'SELFIE', label: 'Selfie (for identity verification)', count: 1, camera: true, accept: 'image/*' });
   return docs;
 }
