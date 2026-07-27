@@ -91,11 +91,11 @@ public class DataSeeder implements CommandLineRunner {
 
         // Real loan products — edit rates/limits directly here, or from Dashboard → Loan Products
         // once the app is running.
-        seedProduct(growth, "Personal Loan", "👤", Loan.LoanType.PERSONAL, 15.0, 50_000.0, 5_000_000.0, 3, 36,
+        seedProduct(growth, "Personal Loan", "👤", Loan.LoanType.PERSONAL, 10.0, 50_000.0, 5_000_000.0, 1, 12,
             "Fast personal financing for any purpose — school fees, medical bills, home improvement.", 1);
-        seedProduct(growth, "Business Loan", "🏢", Loan.LoanType.BUSINESS, 12.0, 500_000.0, 30_000_000.0, 6, 60,
+        seedProduct(growth, "Business Loan", "🏢", Loan.LoanType.BUSINESS, 12.0, 500_000.0, 30_000_000.0, 1, 12,
             "Working capital and expansion financing for registered Rwandan businesses.", 2);
-        seedProduct(growth, "Microfinance Loan", "💡", Loan.LoanType.MICROFINANCE, 18.0, 50_000.0, 1_000_000.0, 3, 12,
+        seedProduct(growth, "Microfinance Loan", "💡", Loan.LoanType.MICROFINANCE, 18.0, 50_000.0, 1_000_000.0, 1, 12,
             "Small loans for micro-entrepreneurs and informal sector workers.", 3);
 
         log.info("");

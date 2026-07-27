@@ -1,6 +1,11 @@
 package com.patrick.fintech.loan_backend.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
@@ -27,9 +32,13 @@ public class Borrower {
 
     @Column(nullable = false)
     private String firstName;
-    private String lastName;
 
-    @Column(unique = true)
+    @NotBlank(message = "Last name is required")
+@Column(nullable = false)
+    private String lastName;
+    @NotBlank(message = "Email is required")
+@Email(message = "Invalid email address")
+@Column(nullable = false, unique = true)
     private String email;
 
     /** Encrypted at rest — see CryptoConverter. Exact-match lookups use phoneHash, not this column. */
@@ -41,6 +50,12 @@ public class Borrower {
     /** Deterministic HMAC of phone, kept in sync via @PrePersist/@PreUpdate — query by this, not phone directly. */
     private String phoneHash;
 
+    @NotBlank(message = "National ID is required")
+@Pattern(
+    regexp = "^\\d{16}$",
+    message = "National ID must contain exactly 16 digits"
+)
+@Column(nullable = false, unique = true)
     @Convert(converter = com.patrick.fintech.loan_backend.security.CryptoConverter.class)
     private String nationalId;
     /** Deterministic HMAC of nationalId — query/duplicate-check by this, not nationalId directly. */
@@ -51,7 +66,12 @@ public class Borrower {
     private String taxIdentificationNumber;
 
     private LocalDate dateOfBirth;
+    @NotNull(message = "Gender is required")
+
+@Column(nullable = false)
     private String    gender;
+
+    @Column(nullable = false)
     private String    maritalStatus;
 
     // ---- Marital status documentation (required in Rwanda for loans involving

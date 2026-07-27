@@ -86,14 +86,14 @@ public class LoanService {
 
     // Annual rates by loan type
     private static final Map<Loan.LoanType, Double> BASE_RATES = Map.ofEntries(
-        Map.entry(Loan.LoanType.PERSONAL,       15.0),
+        Map.entry(Loan.LoanType.PERSONAL,       10.0),
         Map.entry(Loan.LoanType.MORTGAGE,        8.5),
         Map.entry(Loan.LoanType.AUTO,           10.0),
         Map.entry(Loan.LoanType.BUSINESS,       12.0),
-        Map.entry(Loan.LoanType.STUDENT,         7.0),
-        Map.entry(Loan.LoanType.EMERGENCY,      18.0),
+        Map.entry(Loan.LoanType.STUDENT,         10.0),
+        Map.entry(Loan.LoanType.EMERGENCY,      10.0),
         Map.entry(Loan.LoanType.ASSET_FINANCE,  11.0),
-        Map.entry(Loan.LoanType.SALARY_ADVANCE,  5.0),
+        Map.entry(Loan.LoanType.SALARY_ADVANCE,  10.0),
         Map.entry(Loan.LoanType.MICROFINANCE,   20.0),
         Map.entry(Loan.LoanType.AGRICULTURAL,    9.0),
         Map.entry(Loan.LoanType.TRADE_FINANCE,  13.0),
