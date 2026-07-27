@@ -23,7 +23,7 @@ function NewLoanForm() {
   const [borrowerId,     setBorrowerId]     = useState(searchParams.get('borrowerId') ?? '');
   const [amount,         setAmount]         = useState('');
   const [interestRate,   setInterestRate]   = useState('');
-  const [interestRateType, setInterestRateType] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
+  const [interestRateType] = useState<'MONTHLY'>('MONTHLY'); // Annual removed — every rate is monthly
   const [durationMonths, setDurationMonths] = useState('');
   const [currency,       setCurrency]       = useState('USD');
   const [startDate,      setStartDate]      = useState(new Date().toISOString().slice(0, 10));
@@ -42,10 +42,7 @@ function NewLoanForm() {
 
   const monthlyPreview = (() => {
     const P = Number(amount);
-    // Previously this always divided by 1200 (i.e. treated every rate as annual, /100/12) —
-    // so entering "10" here silently meant 10% per YEAR even when the officer intended 10%
-    // per MONTH. Now it respects whichever type is actually selected below.
-    const r = interestRateType === 'MONTHLY' ? Number(interestRate) / 100 : Number(interestRate) / 1200;
+    const r = Number(interestRate) / 100; // rate is always per month now — Annual removed
     const n = Number(durationMonths);
     if (!P || !n) return null;
     if (r === 0) return (P / n).toFixed(2);
@@ -139,41 +136,25 @@ function NewLoanForm() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Interest Rate ({interestRateType === 'MONTHLY' ? '% per month' : '% per year'}) *
+              Interest Rate (% per month) *
             </label>
-            <div className="flex gap-2 mb-2">
-              <button type="button" onClick={() => setInterestRateType('MONTHLY')}
-                className={`flex-1 text-xs font-semibold py-1.5 rounded-lg border transition ${
-                  interestRateType === 'MONTHLY' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-600 hover:border-blue-400'
-                }`}>
-                Monthly
-              </button>
-              <button type="button" onClick={() => setInterestRateType('ANNUAL')}
-                className={`flex-1 text-xs font-semibold py-1.5 rounded-lg border transition ${
-                  interestRateType === 'ANNUAL' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-600 hover:border-blue-400'
-                }`}>
-                Annual
-              </button>
-            </div>
             <input
               type="number" step="0.1" min="0" required
               value={interestRate}
               onChange={e => setInterestRate(e.target.value)}
-              placeholder={interestRateType === 'MONTHLY' ? 'e.g. 10' : 'e.g. 12'}
+              placeholder="e.g. 10"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            {interestRateType === 'MONTHLY' && (
-              <div className="flex gap-1.5 mt-1.5">
-                {[6, 8, 10].map(r => (
-                  <button key={r} type="button" onClick={() => setInterestRate(String(r))}
-                    className={`text-xs px-2.5 py-1 rounded border font-semibold transition-colors ${
-                      interestRate === String(r) ? 'bg-blue-50 text-blue-700 border-blue-300' : 'border-gray-300 text-gray-600 hover:border-blue-400'
-                    }`}>
-                    {r}%/mo
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="flex gap-1.5 mt-1.5">
+              {[6, 8, 10].map(r => (
+                <button key={r} type="button" onClick={() => setInterestRate(String(r))}
+                  className={`text-xs px-2.5 py-1 rounded border font-semibold transition-colors ${
+                    interestRate === String(r) ? 'bg-blue-50 text-blue-700 border-blue-300' : 'border-gray-300 text-gray-600 hover:border-blue-400'
+                  }`}>
+                  {r}%/mo
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

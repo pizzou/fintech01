@@ -36,7 +36,7 @@ export default function ServicesPage() {
                 <p className="text-gray-600 text-lg leading-relaxed mb-6">{service.description}</p>
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   {[
-                    ['Interest Rate', service.rate + ' p.a.'],
+                    ['Interest Rate', service.rate + (service.rateType === 'MONTHLY' ? ' per month' : ' p.a.')],
                     ['Max Amount',    tenant.currency + ' ' + service.maxAmount],
                     ['Loan Term',     service.term],
                   ].map(([label, value]) => (

@@ -25,7 +25,7 @@ interface TenantConfig {
   registrationNumber?: string;
   socialMedia?: { facebook?: string; instagram?: string; linkedin?: string; twitter?: string; whatsapp?: string };
   mapUrl?: string;
-  services?: { title: string; description: string; icon: string; rate: string; maxAmount: string; term: string }[];
+  services?: { title: string; description: string; icon: string; rate: string; rateType?: string; maxAmount: string; term: string }[];
   hero?: { headline: string; subtext: string };
   stats?: { icon: string; value: string; label: string }[];
   testimonials?: { name: string; role: string; text: string; rating: number }[];

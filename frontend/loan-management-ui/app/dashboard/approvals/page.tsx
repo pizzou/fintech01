@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getLoans, approveLoan, rejectLoan } from '../../../services/loanService';
 import { Loan } from '../../../types/index';
+import { formatInterestRate } from '../../../lib/utils';
 import { PageSpinner } from '../../../components/ui/Skeleton';
 import { toast } from '../../../hooks/useToast';
 import DocumentsPanel from '../../../components/DocumentsPanel';
@@ -68,7 +69,7 @@ export default function ApprovalsPage() {
                     </div>
                     <div>
                       <p className="text-gray-400 text-xs">Interest</p>
-                      <p className="font-semibold">{loan.interestRate}% p.a.</p>
+                      <p className="font-semibold">{formatInterestRate(loan.interestRate, loan.interestRateType)}</p>
                     </div>
                     <div>
                       <p className="text-gray-400 text-xs">Duration</p>

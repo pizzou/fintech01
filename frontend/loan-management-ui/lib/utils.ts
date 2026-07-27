@@ -51,6 +51,17 @@ export function repaymentProgress(totalRepayable: number, totalPaid: number): nu
   return Math.min(100, Math.round((totalPaid / totalRepayable) * 100));
 }
 
+/** Renders an interest rate with the correct basis label. Every rate in this system is
+ *  MONTHLY now (Annual has been removed) — the ANNUAL branch only remains as a defensive
+ *  fallback in case older stored data is ever encountered. */
+export function formatInterestRate(
+  rate: number | null | undefined,
+  rateType?: string | null
+): string {
+  if (rate == null) return '—';
+  return rateType === 'MONTHLY' ? `${rate}% per month` : `${rate}% p.a.`;
+}
+
 export const STATUS_COLORS: Record<LoanStatus, string> = {
   PENDING:       'bg-yellow-100 text-yellow-800 border-yellow-200',
   UNDER_REVIEW:  'bg-blue-100 text-blue-800 border-blue-200',
@@ -75,7 +86,7 @@ export const RISK_COLORS: Record<RiskCategory, string> = {
 };
 
 export const LOAN_TYPE_META: Record<string, { icon: string; label: string; rate: number }> = {
-  PERSONAL:       { icon: '👤', label: 'Personal',              rate: 15   },
+  PERSONAL:       { icon: '👤', label: 'Personal',              rate: 10   },
   MORTGAGE:       { icon: '🏠', label: 'Home Loan',              rate: 8.5  },
   AUTO:           { icon: '🚗', label: 'Car Loan',               rate: 10   },
   BUSINESS:       { icon: '🏢', label: 'Business Loan',          rate: 12   },

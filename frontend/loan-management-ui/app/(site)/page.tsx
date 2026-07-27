@@ -102,7 +102,7 @@ export default function HomePage() {
               <p className="text-gray-500 text-sm leading-relaxed mb-4">{service.description}</p>
               <div className="flex items-center justify-between text-xs mb-4">
                 <span className="font-bold px-3 py-1.5 rounded" style={{ backgroundColor: primary + '12', color: primary }}>
-                  From {service.rate} p.a.
+                  From {service.rate} {service.rateType === 'MONTHLY' ? 'per month' : 'p.a.'}
                 </span>
                 <span className="text-gray-400">Up to {tenant.currency} {service.maxAmount}</span>
               </div>

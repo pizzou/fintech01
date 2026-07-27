@@ -13,7 +13,7 @@ interface Product {
   description?: string;
   loanType: string;
   interestRate: number;
-  interestRateType: 'MONTHLY' | 'ANNUAL';
+  interestRateType: 'MONTHLY';
   minAmount: number;
   maxAmount: number | null;
   minTermMonths: number;
@@ -112,7 +112,7 @@ export default function LoanProductsPage() {
                 <tr key={p.id} className={`hover:bg-gray-50 ${!p.active ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3 font-medium text-gray-800">{p.icon} {p.name}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{p.loanType.replace('_', ' ')}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{p.interestRate}%<span className="text-gray-400 font-normal text-xs"> /{p.interestRateType === 'MONTHLY' ? 'mo' : 'yr'}</span></td>
+                  <td className="px-4 py-3 text-right font-semibold">{p.interestRate}%<span className="text-gray-400 font-normal text-xs"> /mo</span></td>
                   <td className="px-4 py-3 text-right text-gray-600 text-xs">
                     {p.minAmount.toLocaleString()} – {p.maxAmount !== null ? p.maxAmount.toLocaleString() : <span className="text-teal-600 font-semibold">Unlimited</span>}
                   </td>
@@ -156,34 +156,21 @@ export default function LoanProductsPage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-gray-500">Rate Type</label>
-                <select className="w-full border border-gray-300 rounded-lg p-2 text-sm mt-1"
-                  value={editing.interestRateType ?? 'MONTHLY'}
-                  onChange={(e) => setEditing({ ...editing, interestRateType: e.target.value as 'MONTHLY' | 'ANNUAL' })}>
-                  <option value="MONTHLY">% per month</option>
-                  <option value="ANNUAL">% per year</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500">
-                  Interest Rate ({editing.interestRateType === 'ANNUAL' ? '% annual' : '% per month'})
-                </label>
-                <input type="number" step="0.1" className="w-full border border-gray-300 rounded-lg p-2 text-sm mt-1"
-                  value={editing.interestRate ?? 0} onChange={(e) => setEditing({ ...editing, interestRate: Number(e.target.value) })} />
-                {editing.interestRateType !== 'ANNUAL' && (
-                  <div className="flex gap-1.5 mt-1.5">
-                    {[6, 8, 10].map(r => (
-                      <button key={r} type="button"
-                        onClick={() => setEditing({ ...editing, interestRate: r })}
-                        className={`text-xs px-2.5 py-1 rounded border font-semibold transition-colors
-                          ${editing.interestRate === r ? 'bg-teal-600 text-white border-teal-600' : 'border-gray-300 text-gray-600 hover:border-teal-400'}`}>
-                        {r}%
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <div>
+              <label className="text-xs font-semibold text-gray-500">
+                Interest Rate (% per month)
+              </label>
+              <input type="number" step="0.1" className="w-full border border-gray-300 rounded-lg p-2 text-sm mt-1"
+                value={editing.interestRate ?? 0} onChange={(e) => setEditing({ ...editing, interestRate: Number(e.target.value) })} />
+              <div className="flex gap-1.5 mt-1.5">
+                {[6, 8, 10].map(r => (
+                  <button key={r} type="button"
+                    onClick={() => setEditing({ ...editing, interestRate: r })}
+                    className={`text-xs px-2.5 py-1 rounded border font-semibold transition-colors
+                      ${editing.interestRate === r ? 'bg-teal-600 text-white border-teal-600' : 'border-gray-300 text-gray-600 hover:border-teal-400'}`}>
+                    {r}%
+                  </button>
+                ))}
               </div>
             </div>
 

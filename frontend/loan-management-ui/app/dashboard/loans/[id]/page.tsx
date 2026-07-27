@@ -9,7 +9,7 @@ import { StatusBadge, RiskBadge, Pill } from '@/components/ui/Badge';
 import { Table, Thead, Th, Tbody, Tr, Td } from '@/components/ui/Table';
 import { Modal } from '@/components/ui/Modal';
 import { FormGroup, Input, Select, Textarea, Alert } from '@/components/ui/Form';
-import { formatCurrency, formatDate, formatNumber, LOAN_TYPE_META } from '@/lib/utils';
+import { formatCurrency, formatDate, formatNumber, formatInterestRate, LOAN_TYPE_META } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { queueAction, cacheGet, cacheSet } from '@/lib/offlineDb';
@@ -306,7 +306,7 @@ export default function LoanDetailPage() {
           <CardBody>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5">
               <Field label="Loan Type"   value={`${LOAN_TYPE_META[loan.loanType]?.icon} ${LOAN_TYPE_META[loan.loanType]?.label}`} />
-              <Field label="Interest Rate" value={`${loan.interestRate}% p.a.`} />
+              <Field label="Interest Rate" value={formatInterestRate(loan.interestRate, loan.interestRateType)} />
               <Field label="Term"        value={`${loan.durationMonths} months`} />
               <Field label="Schedule"    value={loan.repaymentFrequency} />
               <Field label="Processing Fee" value={fc(loan.processingFee)} />

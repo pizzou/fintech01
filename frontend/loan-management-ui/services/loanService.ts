@@ -5,10 +5,8 @@ export interface CreateLoanPayload {
   borrowerId:             number;
   amount:                 number;
   interestRate:           number;
-  /** 'MONTHLY' (e.g. 10% per month — common for microfinance/salary-advance products) or
-   *  'ANNUAL'. Defaults to ANNUAL on the backend if omitted, so this must be sent explicitly
-   *  whenever the rate entered is a monthly one. */
-  interestRateType?:      'MONTHLY' | 'ANNUAL';
+  /** Always 'MONTHLY' now — Annual has been removed as a rate basis system-wide. */
+  interestRateType?:      'MONTHLY';
   durationMonths:         number;
   currency:               string;
   startDate:              string;

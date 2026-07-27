@@ -91,11 +91,11 @@ public class DataSeeder implements CommandLineRunner {
 
         // Real loan products — edit rates/limits directly here, or from Dashboard → Loan Products
         // once the app is running.
-        seedProduct(growth, "Personal Loan", "👤", Loan.LoanType.PERSONAL, 10.0, 50_000.0, 5_000_000.0, 1, 12,
+        seedProduct(growth, "Personal Loan", "👤", Loan.LoanType.PERSONAL, 10.0, "MONTHLY", 50_000.0, 5_000_000.0, 1, 12,
             "Fast personal financing for any purpose — school fees, medical bills, home improvement.", 1);
-        seedProduct(growth, "Business Loan", "🏢", Loan.LoanType.BUSINESS, 12.0, 500_000.0, 30_000_000.0, 1, 12,
+        seedProduct(growth, "Business Loan", "🏢", Loan.LoanType.BUSINESS, 12.0, "A", 500_000.0, 30_000_000.0, 1, 12,
             "Working capital and expansion financing for registered Rwandan businesses.", 2);
-        seedProduct(growth, "Microfinance Loan", "💡", Loan.LoanType.MICROFINANCE, 18.0, 50_000.0, 1_000_000.0, 1, 12,
+        seedProduct(growth, "Microfinance Loan", "💡", Loan.LoanType.MICROFINANCE, 18.0, "ANNUAL", 50_000.0, 1_000_000.0, 3, 12,
             "Small loans for micro-entrepreneurs and informal sector workers.", 3);
 
         log.info("");
@@ -122,11 +122,11 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void seedProduct(Organization org, String name, String icon, Loan.LoanType type,
-                              double rate, double minAmount, double maxAmount,
+                              double rate, String rateType, double minAmount, double maxAmount,
                               int minTerm, int maxTerm, String description, int order) {
         loanProductRepo.save(LoanProduct.builder()
             .organization(org).name(name).icon(icon).loanType(type)
-            .interestRate(rate).minAmount(minAmount).maxAmount(maxAmount)
+            .interestRate(rate).interestRateType(rateType).minAmount(minAmount).maxAmount(maxAmount)
             .minTermMonths(minTerm).maxTermMonths(maxTerm)
             .processingFeePercent(2.0).description(description)
             .active(true).displayOrder(order).build());
