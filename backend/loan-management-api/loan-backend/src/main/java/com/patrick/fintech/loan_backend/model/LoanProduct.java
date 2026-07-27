@@ -43,7 +43,7 @@ public class LoanProduct {
     /** MONTHLY (e.g. 6/8/10% per month — common for microfinance/salary-advance products)
      *  or ANNUAL (the rate the system assumed everywhere before this field existed). */
     @Builder.Default
-    private String interestRateType = "ANNUAL";
+    private String interestRateType = "MONTHLY";
 
     @Column(nullable = false)
     private Double minAmount;
@@ -73,7 +73,7 @@ public class LoanProduct {
         createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now();
         if (active == null) active = true;
         if (processingFeePercent == null) processingFeePercent = 2.0;
-        if (interestRateType == null) interestRateType = "ANNUAL";
+        if (interestRateType == null) interestRateType = "MONTHLY";
     }
 
     /** Parsed, trimmed list — null (not empty) when unset, so callers can distinguish

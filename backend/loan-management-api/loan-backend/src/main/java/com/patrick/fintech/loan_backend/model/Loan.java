@@ -76,7 +76,7 @@ private Double nextInstallmentAmount;
 private LocalDate nextPaymentDate;
     private Double  interestRate;        // meaning depends on interestRateType — see LoanProduct
     @Builder.Default
-    private String  interestRateType = "ANNUAL"; // MONTHLY or ANNUAL — copied from the product at creation time
+    private String  interestRateType = "MONTHLY"; // MONTHLY or ANNUAL — copied from the product at creation time
     private Integer durationMonths;
     private String  currency;            // ISO-4217
     private Double  processingFeeRate;   // % of principal
@@ -124,7 +124,7 @@ private LocalDate nextPaymentDate;
     @PrePersist protected void onCreate() {
         createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now();
         if (status == null) status = LoanStatus.PENDING;
-        if (interestRateType == null) interestRateType = "ANNUAL";
+        if (interestRateType == null) interestRateType = "MONTHLY";
         if (missedInstallments == null) missedInstallments = 0;
         if (daysOverdue == null) daysOverdue = 0;
         if (totalPaid == null) totalPaid = 0.0;

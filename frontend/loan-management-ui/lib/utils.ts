@@ -106,8 +106,9 @@ export const SUPPORTED_CURRENCIES = [
 ];
 
 export const COUNTRIES = [
-  { code: 'KE', name: 'Kenya' },        { code: 'UG', name: 'Uganda' },
-  { code: 'TZ', name: 'Tanzania' },     { code: 'RW', name: 'Rwanda' },
+  
+   { code: 'RW', name: 'Rwanda' },      { code: 'UG', name: 'Uganda' },
+  { code: 'TZ', name: 'Tanzania' },     { code: 'KE', name: 'Kenya' }, 
   { code: 'ET', name: 'Ethiopia' },     { code: 'NG', name: 'Nigeria' },
   { code: 'GH', name: 'Ghana' },        { code: 'ZA', name: 'South Africa' },
   { code: 'EG', name: 'Egypt' },        { code: 'IN', name: 'India' },

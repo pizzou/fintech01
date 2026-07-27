@@ -12,7 +12,7 @@ public class LoanRequest {
     /** "MONTHLY" or "ANNUAL" — how to interpret interestRate above when it's supplied.
      *  Ignored (falls back to the product's own type) when interestRate is null. */
     private String  interestRateType;
-    @NotNull @Min(1) @Max(360) private Integer durationMonths;
+    @NotNull @Min(1) @Max(12) private Integer durationMonths;
     private String  currency;
     private String  startDate;
     private String  purpose;
