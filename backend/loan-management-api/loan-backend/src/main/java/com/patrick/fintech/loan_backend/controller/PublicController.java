@@ -615,7 +615,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         config.put("socialMedia", social);
         config.put("services", servicesFor(org));
         config.put("hero", Map.of(
-            "headline", org.getHeroHeadline() != null ? org.getHeroHeadline() : "Your Trusted Financial Partner",
+            "headline", org.getHeroHeadline() != null ? org.getHeroHeadline() : "Borrow & Grow with us",
             "subtext",  org.getHeroSubtext()  != null ? org.getHeroSubtext()
                 : "Fast approvals, competitive rates, and flexible terms. Whether you need a personal loan, business financing, or agricultural credit — we make it simple."
         ));

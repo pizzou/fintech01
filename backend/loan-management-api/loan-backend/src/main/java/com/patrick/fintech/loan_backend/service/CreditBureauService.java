@@ -80,6 +80,64 @@ public class CreditBureauService {
         return check;
     }
 
+    @Transactional
+public void reportDisbursedLoan(Loan loan, String reportedBy) {
+
+    Borrower borrower = loan.getBorrower();
+
+    if (borrower == null) {
+        throw new RuntimeException("Borrower not found for loan.");
+    }
+
+    if (bureauEnabled && apiKey != null && !apiKey.isBlank()) {
+
+        try {
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(apiKey);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            Map<String, Object> payload = new HashMap<>();
+
+            payload.put("loanNumber", loan.getReferenceNumber());
+            payload.put("nationalId", borrower.getNationalId());
+            payload.put("borrowerName",
+                    borrower.getFirstName() + " " + borrower.getLastName());
+            payload.put("loanAmount", loan.getAmount());
+            payload.put("outstandingBalance", loan.getAmount());
+            payload.put("currency", loan.getCurrency());
+            payload.put("status", loan.getStatus().name());
+            payload.put("disbursedDate", loan.getDisbursedAt());
+            payload.put("nextPaymentDate", loan.getNextPaymentDate());
+
+            HttpEntity<Map<String, Object>> entity =
+                    new HttpEntity<>(payload, headers);
+
+            restTemplate.postForEntity(
+                    baseUrl + "/v1/loan-report",
+                    entity,
+                    String.class
+            );
+
+            log.info("Loan {} reported to Credit Bureau.",
+                    loan.getReferenceNumber());
+
+        } catch (Exception ex) {
+
+            log.error("Credit Bureau reporting failed.", ex);
+
+            throw ex;
+        }
+
+    } else {
+
+        log.info(
+                "Credit Bureau integration disabled. Loan {} not reported.",
+                loan.getReferenceNumber());
+
+    }
+}
+
     private CreditBureauCheck tryLiveProvider(Borrower borrower) {
         try {
             HttpHeaders headers = new HttpHeaders();

@@ -37,6 +37,7 @@ public class LoanService {
     private final AccountingService    accountingService;
     private final BorrowerFileService  fileService;
     private final HolidayService       holidayService;
+    private final CreditBureauService creditBureauService;
 
     private final PaymentScheduleService paymentScheduleService;
 
@@ -288,7 +289,7 @@ if (loan.getStatus() == LoanStatus.OVERDUE) {
             .currency(req.getCurrency() != null ? req.getCurrency() : org.getDefaultCurrency())
             .processingFee(round(procFee))
             .totalRepayable(round(calc[1]))
-            .outstandingBalance(round(calc[1]))
+            .outstandingBalance(round(req.getAmount()))
             .totalPaid(0.0)
             .purpose(req.getPurpose())
             .notes(req.getNotes())
@@ -386,81 +387,163 @@ if (!missingDocs.isEmpty()) {
     }
 
     @Transactional
-    public Loan disburseLoan(Long loanId, User officer, String disbursementMethod) {
-        Loan loan = getLoanForOrg(loanId, officer.getOrganization().getId());
-        if (loan.getStatus() != LoanStatus.APPROVED) throw new RuntimeException("Loan must be APPROVED before disbursement");
+public Loan disburseLoan(Long loanId, User officer, String disbursementMethod) {
 
-        if (loan.getBorrower() == null) {
-            throw new RuntimeException("Cannot disburse loan " + loan.getReferenceNumber()
-                + " — it has no borrower record linked. This indicates a data problem; fix the "
-                + "borrower link before funds can be released.");
-        }
-       List<DocumentType> unverifiedDocs = fileService.getUnverifiedDocumentTypes(
-        loan.getBorrower().getId(),
-        requiredDocsFor(loan));
+    Loan loan = getLoanForOrg(loanId, officer.getOrganization().getId());
 
-if (!unverifiedDocs.isEmpty()) {
-    throw new RuntimeException(
-            "Cannot disburse this loan — staff still needs to verify: "
-            + unverifiedDocs.stream()
-                    .map(DocumentType::name)
-                    .collect(java.util.stream.Collectors.joining(", "))
-            + " in the Documents tab before funds can be released."
-    );
-}
-        loan.setStatus(LoanStatus.ACTIVE);
-loan.setDisbursedAt(LocalDate.now());
-loan.setDisbursedAmount(loan.getAmount());
-loan.setMaturityDate(LocalDate.now().plusMonths(loan.getDurationMonths()));
-loan.setNextDueDate(LocalDate.now().plusMonths(1));
-
-Loan saved = loanRepo.save(loan);
-
-// Generate repayment schedule
-paymentScheduleService.generateSchedule(saved);
-
-// Update next installment
-PaymentSchedule first = paymentScheduleService.getNextInstallment(saved.getId());
-
-if (first != null) {
-    saved.setNextPaymentDate(first.getDueDate());
-    saved.setNextInstallmentAmount(first.getInstallmentAmount());
-    saved.setNextDueDate(first.getDueDate());
-}
-
-saved = loanRepo.save(saved);
-
-audit(saved.getOrganization(), officer, "LOAN_DISBURSED", "LOAN",
-      loanId.toString(), "Disbursed via " + disbursementMethod);
-
-accountingService.postDisbursement(saved);
-
-try {
-    mailService.sendLoanDisbursed(saved, disbursementMethod);
-} catch (Exception e) {
-    log.warn("Notif failed", e);
-}
-
-try {
-    smsService.sendLoanDisbursed(saved, disbursementMethod);
-} catch (Exception e) {
-    log.warn("SMS failed", e);
-}
-
-notifyOfficer(
-    saved,
-    officer,
-    "Loan Disbursed",
-    "Loan " + saved.getReferenceNumber() + " (" +
-    saved.getCurrency() + " " + saved.getDisbursedAmount() +
-    ") has been disbursed via " + disbursementMethod + ".",
-    "success"
-);
-
-webhookService.dispatch(saved.getOrganization(), "LOAN_DISBURSED", saved);
-
-return saved;
+    if (loan.getStatus() != LoanStatus.APPROVED) {
+        throw new RuntimeException("Loan must be APPROVED before disbursement");
     }
+
+    if (loan.getBorrower() == null) {
+        throw new RuntimeException(
+            "Cannot disburse loan " + loan.getReferenceNumber()
+            + " — it has no borrower record linked. This indicates a data problem; "
+            + "fix the borrower link before funds can be released."
+        );
+    }
+
+    List<DocumentType> unverifiedDocs =
+            fileService.getUnverifiedDocumentTypes(
+                    loan.getBorrower().getId(),
+                    requiredDocsFor(loan));
+
+    if (!unverifiedDocs.isEmpty()) {
+        throw new RuntimeException(
+                "Cannot disburse this loan — staff still needs to verify: "
+                        + unverifiedDocs.stream()
+                        .map(DocumentType::name)
+                        .collect(Collectors.joining(", "))
+                        + " in the Documents tab before funds can be released."
+        );
+    }
+
+    // =====================================================
+    // DISBURSE LOAN
+    // =====================================================
+
+    loan.setStatus(LoanStatus.ACTIVE);
+    loan.setDisbursedAt(LocalDate.now());
+    loan.setDisbursedAmount(loan.getAmount());
+    loan.setMaturityDate(LocalDate.now().plusMonths(loan.getDurationMonths()));
+    loan.setNextDueDate(LocalDate.now().plusMonths(1));
+
+    Loan saved = loanRepo.save(loan);
+
+    // =====================================================
+    // GENERATE REPAYMENT SCHEDULE
+    // =====================================================
+
+    paymentScheduleService.generateSchedule(saved);
+
+    PaymentSchedule first =
+            paymentScheduleService.getNextInstallment(saved.getId());
+
+    if (first != null) {
+        saved.setNextPaymentDate(first.getDueDate());
+        saved.setNextInstallmentAmount(first.getInstallmentAmount());
+        saved.setNextDueDate(first.getDueDate());
+    }
+
+    saved = loanRepo.save(saved);
+
+    // =====================================================
+    // REPORT TO CREDIT BUREAU
+    // =====================================================
+
+    try {
+
+        creditBureauService.reportDisbursedLoan(
+                saved,
+                officer.getName()
+        );
+
+        log.info("Loan {} successfully reported to Credit Bureau.",
+                saved.getReferenceNumber());
+
+    } catch (Exception ex) {
+
+        log.error(
+                "Unable to report loan {} to Credit Bureau.",
+                saved.getReferenceNumber(),
+                ex
+        );
+
+        // Do NOT rollback disbursement because the bureau
+        // may simply be temporarily unavailable.
+    }
+
+    // =====================================================
+    // AUDIT
+    // =====================================================
+
+    audit(
+            saved.getOrganization(),
+            officer,
+            "LOAN_DISBURSED",
+            "LOAN",
+            loanId.toString(),
+            "Disbursed via " + disbursementMethod
+    );
+
+    // =====================================================
+    // ACCOUNTING
+    // =====================================================
+
+    accountingService.postDisbursement(saved);
+
+    // =====================================================
+    // EMAIL
+    // =====================================================
+
+    try {
+        mailService.sendLoanDisbursed(saved, disbursementMethod);
+    } catch (Exception e) {
+        log.warn("Loan disbursement email failed.", e);
+    }
+
+    // =====================================================
+    // SMS
+    // =====================================================
+
+    try {
+        smsService.sendLoanDisbursed(saved, disbursementMethod);
+    } catch (Exception e) {
+        log.warn("Loan disbursement SMS failed.", e);
+    }
+
+    // =====================================================
+    // IN-APP NOTIFICATION
+    // =====================================================
+
+    notifyOfficer(
+            saved,
+            officer,
+            "Loan Disbursed",
+            "Loan "
+                    + saved.getReferenceNumber()
+                    + " ("
+                    + saved.getCurrency()
+                    + " "
+                    + saved.getDisbursedAmount()
+                    + ") has been disbursed via "
+                    + disbursementMethod
+                    + ".",
+            "success"
+    );
+
+    // =====================================================
+    // WEBHOOK
+    // =====================================================
+
+    webhookService.dispatch(
+            saved.getOrganization(),
+            "LOAN_DISBURSED",
+            saved
+    );
+
+    return saved;
+}
     /** Notifies the loan's assigned officer in-app when someone else (a manager, another
      *  officer) changes the loan's status — a no-op if the officer isn't set or is the actor. */
     private void notifyOfficer(Loan loan, User actor, String title, String message, String type) {
@@ -610,7 +693,7 @@ return result;
    private void generateRepaymentSchedule(Loan loan) {
         double principal = loan.getAmount() != null ? loan.getAmount() : 0;
         double rate      = loan.getInterestRate() != null ? loan.getInterestRate() : 0;
-        String rateType  = loan.getInterestRateType() != null ? loan.getInterestRateType() : "ANNUAL";
+        String rateType  = loan.getInterestRateType() != null ? loan.getInterestRateType() : "MONTHLY";
         int    months    = loan.getDurationMonths() != null ? loan.getDurationMonths() : 1;
         double monthly   = calcLoan(principal, rate, months, rateType)[0];
         double balance   = loan.getTotalRepayable() != null ? loan.getTotalRepayable() : principal;
