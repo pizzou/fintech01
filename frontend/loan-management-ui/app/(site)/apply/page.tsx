@@ -324,7 +324,7 @@ export default function ApplyPage() {
                 </Field>
                 <Field label="Repayment Period" required>
                   <select required className={inp} value={form.durationMonths} onChange={set('durationMonths')}>
-                    {[3,6,9,12,18,24,36,48,60].map(m=><option key={m} value={m}>{m} months</option>)}
+                    {[1,2,3,4,5,6,7,8,9,10,11,12].map(m=><option key={m} value={m}>{m} months</option>)}
                   </select>
                 </Field>
               </div>
