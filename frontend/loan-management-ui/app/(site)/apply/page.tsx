@@ -30,6 +30,7 @@ export default function ApplyPage() {
     address: '', city: '', province: '',
     // Employment
     employmentType: 'EMPLOYED', employerName: '', jobTitle: '',
+    natureOfBusiness: '', employmentTypeOther: '',
     monthlyIncome: '', monthlyExpenses: '',
     // Loan
     loanType: searchParams?.get('type')?.replace(/_/g,' ') || 'Personal Loans',
@@ -44,6 +45,23 @@ export default function ApplyPage() {
   const accent  = tenant.accentColor;
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: (e.target as HTMLInputElement).type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value }));
+
+  // National ID: Rwanda national IDs are exactly 16 digits, numbers only.
+  const NATIONAL_ID_REGEX = /^\d{16}$/;
+  const isNationalIdValid = (v: string) => NATIONAL_ID_REGEX.test(v);
+  const setNationalId = (k: 'nationalId' | 'spouseNationalId') => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 16);
+    setForm(f => ({ ...f, [k]: digitsOnly }));
+  };
+
+  // Phone: numbers only, must include a country code (e.g. +250 7XX XXX XXX -> 12 digits after '+').
+  const PHONE_REGEX = /^\+\d{10,15}$/;
+  const isPhoneValid = (v: string) => PHONE_REGEX.test(v);
+  const setPhone = (k: 'phone' | 'spousePhone') => (e: React.ChangeEvent<HTMLInputElement>) => {
+    let v = e.target.value.replace(/[^\d+]/g, ''); // keep digits and '+'
+    v = (v.startsWith('+') ? '+' : '') + v.replace(/\+/g, '');
+    setForm(f => ({ ...f, [k]: v }));
+  };
 
   const online = useOnlineStatus();
 
@@ -235,8 +253,18 @@ export default function ApplyPage() {
                 <Field label="First Name" required><input required className={inp} value={form.firstName} onChange={set('firstName')} /></Field>
                 <Field label="Last Name"  required><input required className={inp} value={form.lastName}  onChange={set('lastName')}  /></Field>
                 <Field label="Email Address"><input type="email" className={inp} value={form.email} onChange={set('email')} /></Field>
-                <Field label="Phone Number" required><input required className={inp} placeholder="+250 7XX XXX XXX" value={form.phone} onChange={set('phone')} /></Field>
-                <Field label="National ID" required><input required className={inp} value={form.nationalId} onChange={set('nationalId')} /></Field>
+                <Field label="Phone Number" required hint={form.phone && !isPhoneValid(form.phone) ? undefined : "Include country code, e.g. +2507XXXXXXXX"}>
+                  <input required inputMode="tel" className={inp} placeholder="+250 7XX XXX XXX" value={form.phone} onChange={setPhone('phone')} />
+                  {form.phone && !isPhoneValid(form.phone) && (
+                    <p className="text-xs mt-1 text-red-600 font-semibold">Enter a valid number with country code, digits only (e.g. +2507XXXXXXXX)</p>
+                  )}
+                </Field>
+                <Field label="National ID" required hint={form.nationalId && !isNationalIdValid(form.nationalId) ? undefined : "16 digits, numbers only"}>
+                  <input required inputMode="numeric" maxLength={16} className={inp} value={form.nationalId} onChange={setNationalId('nationalId')} />
+                  {form.nationalId && !isNationalIdValid(form.nationalId) && (
+                    <p className="text-xs mt-1 text-red-600 font-semibold">National ID must be exactly 16 digits</p>
+                  )}
+                </Field>
                 <Field label="Date of Birth"><input type="date" className={inp} value={form.dateOfBirth} onChange={set('dateOfBirth')} /></Field>
                 <Field label="Gender"><select className={inp} value={form.gender} onChange={set('gender')}><option value="">Select…</option>{['Male','Female','Other'].map(g=><option key={g}>{g}</option>)}</select></Field>
                 <Field label="Marital Status"><select className={inp} value={form.maritalStatus} onChange={set('maritalStatus')}><option value="">Select…</option>{['Single','Married','Divorced','Widowed'].map(m=><option key={m}>{m}</option>)}</select></Field>
@@ -252,10 +280,16 @@ export default function ApplyPage() {
                       <input required className={inp} value={form.spouseFullName} onChange={set('spouseFullName')} />
                     </Field>
                     <Field label="Spouse National ID">
-                      <input className={inp} value={form.spouseNationalId} onChange={set('spouseNationalId')} />
+                      <input inputMode="numeric" maxLength={16} className={inp} value={form.spouseNationalId} onChange={setNationalId('spouseNationalId')} />
+                      {form.spouseNationalId && !isNationalIdValid(form.spouseNationalId) && (
+                        <p className="text-xs mt-1 text-red-600 font-semibold">Must be exactly 16 digits</p>
+                      )}
                     </Field>
                     <Field label="Spouse Phone">
-                      <input className={inp} value={form.spousePhone} onChange={set('spousePhone')} />
+                      <input inputMode="tel" className={inp} placeholder="+250 7XX XXX XXX" value={form.spousePhone} onChange={setPhone('spousePhone')} />
+                      {form.spousePhone && !isPhoneValid(form.spousePhone) && (
+                        <p className="text-xs mt-1 text-red-600 font-semibold">Enter a valid number with country code</p>
+                      )}
                     </Field>
                     <div className="sm:col-span-2">
                       <label className="flex items-start gap-2.5 text-sm text-gray-600 cursor-pointer">
@@ -281,12 +315,29 @@ export default function ApplyPage() {
               <h2 className="text-xl font-extrabold text-gray-900 mb-6">Employment & Financial Info</h2>
               <Field label="Employment Type" required>
                 <select required className={inp} value={form.employmentType} onChange={set('employmentType')}>
-                  {['EMPLOYED','SELF_EMPLOYED','BUSINESS_OWNER','FARMER','RETIRED','OTHER'].map(t=><option key={t}>{t.replace(/_/g,' ')}</option>)}
+                  {['EMPLOYED','SELF_EMPLOYED','BUSINESS_OWNER','FARMER','RETIRED','OTHER'].map(t=><option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
                 </select>
               </Field>
+
+              {form.employmentType === 'OTHER' && (
+                <Field label="Please Specify" required>
+                  <input required className={inp} placeholder="Describe your employment situation" value={form.employmentTypeOther} onChange={set('employmentTypeOther')} />
+                </Field>
+              )}
+
+              {form.employmentType === 'BUSINESS_OWNER' && (
+                <Field label="Nature of Business" required>
+                  <input required className={inp} placeholder="e.g. Retail shop, restaurant, transport" value={form.natureOfBusiness} onChange={set('natureOfBusiness')} />
+                </Field>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Employer / Business Name"><input className={inp} value={form.employerName} onChange={set('employerName')} /></Field>
-                <Field label="Job Title / Occupation"><input className={inp} value={form.jobTitle} onChange={set('jobTitle')} /></Field>
+                {!['SELF_EMPLOYED','FARMER'].includes(form.employmentType) && (
+                  <>
+                    <Field label="Employer / Business Name"><input className={inp} value={form.employerName} onChange={set('employerName')} /></Field>
+                    <Field label="Job Title / Occupation"><input className={inp} value={form.jobTitle} onChange={set('jobTitle')} /></Field>
+                  </>
+                )}
                 <Field label={`Monthly Income (${tenant.currency})`} required><input required type="number" className={inp} value={form.monthlyIncome} onChange={set('monthlyIncome')} /></Field>
                 <Field label={`Monthly Expenses (${tenant.currency})`}><input type="number" className={inp} value={form.monthlyExpenses} onChange={set('monthlyExpenses')} /></Field>
               </div>
@@ -376,7 +427,11 @@ export default function ApplyPage() {
                   ['Loan Type',   form.loanType],
                   ['Amount',      `${tenant.currency} ${Number(form.amount).toLocaleString()}`],
                   ['Term',        `${form.durationMonths} months`],
-                  ['Employment',  form.employmentType],
+                  ['Employment',  form.employmentType === 'OTHER' && form.employmentTypeOther
+                                    ? `Other — ${form.employmentTypeOther}`
+                                    : form.employmentType.replace(/_/g,' ')],
+                  ...(form.employmentType === 'BUSINESS_OWNER' && form.natureOfBusiness
+                    ? [['Nature of Business', form.natureOfBusiness]] : []),
                   ['Income',      `${tenant.currency} ${Number(form.monthlyIncome).toLocaleString()}/mo`],
                 ].map(([l,v]) => (
                   <div key={l} className="flex justify-between border-b border-gray-200 last:border-0 pb-2 last:pb-0">
@@ -415,8 +470,14 @@ export default function ApplyPage() {
             {step < 4
               ? <button onClick={() => setStep(s => (s + 1) as Step)}
                   disabled={
+                    (step === 1 && !isNationalIdValid(form.nationalId)) ||
+                    (step === 1 && !isPhoneValid(form.phone)) ||
                     (step === 1 && form.maritalStatus === 'Single' && !form.singleCertificateNumber) ||
                     (step === 1 && form.maritalStatus === 'Married' && !form.spouseFullName) ||
+                    (step === 1 && form.maritalStatus === 'Married' && !!form.spouseNationalId && !isNationalIdValid(form.spouseNationalId)) ||
+                    (step === 1 && form.maritalStatus === 'Married' && !!form.spousePhone && !isPhoneValid(form.spousePhone)) ||
+                    (step === 2 && form.employmentType === 'OTHER' && !form.employmentTypeOther) ||
+                    (step === 2 && form.employmentType === 'BUSINESS_OWNER' && !form.natureOfBusiness) ||
                     (step === 3 && (() => {
                       const svc = tenant.services?.find(s => s.title === form.loanType);
                       return !!svc?.maxAmount && Number(form.amount) > Number(svc.maxAmount);

@@ -65,8 +65,12 @@ public class PublicController {
         String subject = str(body.get("subject"));
         String message = str(body.get("message"));
         String email    = str(body.get("email"));
-        String phone    = str(body.get("phone"));
-        if (name == null || message == null) throw new RuntimeException("Name and message are required");
+        String phone = str(body.get("phone"));
+        if (phone == null || phone.isBlank()) throw new RuntimeException("Phone number is required");
+        if (!phone.trim().matches("\\+\\d{10,15}")) {
+            throw new RuntimeException("Phone number must include a country code and contain digits only (e.g. +2507XXXXXXXX)");
+        }
+        String firstName = str(body.get("firstName"));
 
         contactMessageRepo.save(ContactMessage.builder()
             .organization(org).name(name).email(email).phone(phone).subject(subject).message(message).build());
