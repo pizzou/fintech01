@@ -24,6 +24,7 @@ const NAV_STAFF = [
   ]},
   { section: 'Admin', items: [
     { href: '/dashboard/products',   icon: '💰', label: 'Loan Products', adminOnly: true },
+    { href: '/dashboard/import',     icon: '📥', label: 'Import Legacy Loans', adminOnly: true },
     { href: '/dashboard/accounting', icon: '📒', label: 'Accounting', accountingOnly: true },
     { href: '/dashboard/reports/regulatory', icon: '🏦', label: 'Regulatory Reports' },
     { href: '/dashboard/users',      icon: '🧑‍💼', label: 'Users & Roles', adminOnly: true },
