@@ -365,6 +365,18 @@ if (!missingDocs.isEmpty()) {
         return saved;
     }
 
+    /** Public wrapper around calcLoan for other services (e.g. bulk legacy-loan import)
+     *  that need the same amortization math without duplicating it. */
+    public double[] amortize(double principal, double rate, int months, String rateType) {
+        return calcLoan(principal, rate, months, rateType);
+    }
+
+    /** Public wrapper around generateRef so every loan — created normally or via bulk
+     *  import — gets a reference number from the same single scheme. */
+    public String newReferenceNumber(Organization org) {
+        return generateRef(org);
+    }
+
     @Transactional
     public Loan rejectLoan(Long loanId, User rejectedBy, String reason) {
         Loan loan = getLoanForOrg(loanId, rejectedBy.getOrganization().getId());

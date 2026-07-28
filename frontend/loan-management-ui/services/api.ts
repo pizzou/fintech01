@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://fintech01.onrender.com/api',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api',
   timeout: 20000,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -54,15 +54,8 @@ export const loanApi = {
     get(`/loans?page=${page}&size=${size}${status?`&status=${status}`:''}${type?`&type=${type}`:''}`),
   get:        (id: number)                => get(`/loans/${id}`),
   create:     (data: unknown)             => post('/loans', data),
-  approve: (
-    id: number,
-    notes = '',
-    interestRate?: number
-  ) =>
-    post(`/loans/${id}/approve`, {
-      notes,
-      interestRate,
-    }),
+  approve:    (id: number, notes='', interestRate?: number) =>
+    post(`/loans/${id}/approve`, { notes, interestRate: interestRate != null ? String(interestRate) : undefined }),
   reject:     (id: number, reason: string)=> post(`/loans/${id}/reject`, { reason }),
   disburse:   (id: number, method: string)=> post(`/loans/${id}/disburse`, { disbursementMethod: method }),
   updateStatus:(id: number, status: string, notes?: string) => post(`/loans/${id}/status`, { status, notes }),
@@ -141,6 +134,8 @@ export const creditBureauApi = {
   check:   (borrowerId: number) => post(`/credit-bureau/borrowers/${borrowerId}/check`),
   history: (borrowerId: number) => get(`/credit-bureau/borrowers/${borrowerId}/history`),
   latest:  (borrowerId: number) => get(`/credit-bureau/borrowers/${borrowerId}/latest`),
+  reportForLoan: (loanId: number) => get(`/credit-bureau/loans/${loanId}/report`),
+  retryReport:   (loanId: number) => post(`/credit-bureau/loans/${loanId}/report/retry`),
 };
 
 export const esignatureApi = {
@@ -217,4 +212,21 @@ export const publicApi = {
       { headers: { 'Content-Type': 'multipart/form-data' } },
     ).then(r => (r.data as any)?.data ?? r.data);
   },
+};
+
+export const importApi = {
+  template: () => API.get('/import/legacy-loans/template', { responseType: 'blob' }),
+  preview: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return API.post('/import/legacy-loans/preview', form,
+      { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => (r.data as any)?.data ?? r.data);
+  },
+  commit: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return API.post('/import/legacy-loans/commit', form,
+      { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => (r.data as any)?.data ?? r.data);
+  },
+  batches: () => get('/import/legacy-loans/batches'),
 };

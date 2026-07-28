@@ -87,6 +87,9 @@ public class Borrower {
     private Boolean   spouseConsent;              // spouse consents to the loan/collateral use
     private String    nationality;       // ISO-3166 alpha-2
 
+      @Builder.Default
+    private Boolean imported = false;
+    private Long    importBatchId;
     // Address
     @Convert(converter = com.patrick.fintech.loan_backend.security.CryptoConverter.class)
     private String address;       // convenience single-line address

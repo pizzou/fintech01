@@ -93,6 +93,10 @@ private LocalDate nextPaymentDate;
     private String  rejectionReason;
     private String  internalNotes;
 
+      @Builder.Default
+    private Boolean imported = false;
+    private Long    importBatchId;
+
     // Risk
     private Double  riskScore;
     private String  riskCategory;        // LOW, MEDIUM, HIGH, CRITICAL
