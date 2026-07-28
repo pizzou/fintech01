@@ -123,7 +123,12 @@ class LoanServiceTest {
         when(paymentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         // approveLoan(Long loanId, User approvedBy, String notes)
-        Loan result = loanService.approveLoan(1L, officer, null);
+       Loan result = loanService.approveLoan(
+        1L,
+        officer,
+        null,
+        null
+);
 
         assertThat(result.getStatus()).isEqualTo(LoanStatus.APPROVED);
         verify(paymentRepository, times(12)).save(any());
@@ -139,7 +144,13 @@ class LoanServiceTest {
         when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
 
         // approveLoan(Long loanId, User approvedBy, String notes)
-        assertThatThrownBy(() -> loanService.approveLoan(1L, officer, null))
+        assertThatThrownBy(() ->
+        loanService.approveLoan(
+                1L,
+                officer,
+                null,
+                null
+        ))
             .isInstanceOf(RuntimeException.class)
             .hasMessageContaining("Already approved");
     }

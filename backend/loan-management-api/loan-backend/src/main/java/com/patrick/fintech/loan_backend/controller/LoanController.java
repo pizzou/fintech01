@@ -82,9 +82,12 @@ public class LoanController {
             @RequestBody(required = false) Map<String, String> body) {
         User user  = currentUserUtil.getCurrentUser();
         String notes = body != null ? body.get("notes") : null;
-        // Routed through the approval chain so a loan requiring multiple sign-offs can't be
-        // fast-tracked through this single endpoint — see LoanApprovalService.decide().
-        loanApprovalService.decide(id, user, "APPROVED", notes);
+        Double newInterestRate = null;
+        if (body != null && body.get("interestRate") != null && !body.get("interestRate").isBlank()) {
+            try { newInterestRate = Double.valueOf(body.get("interestRate")); }
+            catch (NumberFormatException e) { throw new RuntimeException("interestRate must be a number"); }
+        }
+        loanApprovalService.decide(id, user, "APPROVED", notes, newInterestRate);
         return ResponseEntity.ok(ApiResponse.ok("Decision recorded", loanService.getLoanForOrg(id, user.getOrganization().getId())));
     }
 
