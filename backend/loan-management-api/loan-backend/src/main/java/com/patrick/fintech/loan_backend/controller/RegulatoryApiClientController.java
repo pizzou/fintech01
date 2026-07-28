@@ -23,7 +23,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/regulatory/api-clients")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('ADMIN','MANAGER','LOAN_OFFICER')")
 public class RegulatoryApiClientController {
 
     private final RegulatoryApiClientService service;
