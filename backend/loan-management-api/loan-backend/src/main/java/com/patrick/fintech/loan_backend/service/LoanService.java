@@ -702,40 +702,103 @@ return result;
     }
 
     // ===== helpers =====
-   private void generateRepaymentSchedule(Loan loan) {
-        double principal = loan.getAmount() != null ? loan.getAmount() : 0;
-        double rate      = loan.getInterestRate() != null ? loan.getInterestRate() : 0;
-        String rateType  = loan.getInterestRateType() != null ? loan.getInterestRateType() : "MONTHLY";
-        int    months    = loan.getDurationMonths() != null ? loan.getDurationMonths() : 1;
-        double monthly   = calcLoan(principal, rate, months, rateType)[0];
-        double balance   = loan.getTotalRepayable() != null ? loan.getTotalRepayable() : principal;
-        double mRate     = "MONTHLY".equalsIgnoreCase(rateType) ? rate / 100 : rate / 100 / 12;
-        Long   orgId     = loan.getOrganization().getId();
+   // ===== helpers =====
+private void generateRepaymentSchedule(Loan loan) {
 
-        LocalDate due = holidayService.adjustToBusinessDay(orgId,
-            (loan.getStartDate() != null ? loan.getStartDate() : LocalDate.now()).plusMonths(1));
+    double principal = loan.getAmount() != null ? loan.getAmount() : 0.0;
+    double rate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
+    String rateType = loan.getInterestRateType() != null
+            ? loan.getInterestRateType()
+            : "MONTHLY";
+    int months = loan.getDurationMonths() != null
+            ? loan.getDurationMonths()
+            : 1;
 
-        for (int i = 1; i <= months; i++) {
-            double interest   = balance * mRate;
-            double principalC = monthly - interest;
-            balance           = Math.max(0, balance - principalC);
+    // Monthly installment calculated using the same logic everywhere
+    double monthlyPayment = calcLoan(principal, rate, months, rateType)[0];
 
-            Payment p = Payment.builder()
+    // IMPORTANT: Outstanding balance starts with the principal,
+    // NOT the total repayable.
+    double balance = principal;
+
+    // Monthly interest rate
+    double monthlyRate;
+
+    if ("MONTHLY".equalsIgnoreCase(rateType)) {
+        monthlyRate = rate / 100.0;
+    } else {
+        monthlyRate = rate / 100.0 / 12.0;
+    }
+
+    Long orgId = loan.getOrganization().getId();
+
+    LocalDate due = holidayService.adjustToBusinessDay(
+            orgId,
+            (loan.getStartDate() != null
+                    ? loan.getStartDate()
+                    : LocalDate.now()).plusMonths(1)
+    );
+
+    for (int i = 1; i <= months; i++) {
+
+        double interest = round(balance * monthlyRate);
+
+        double principalComponent;
+
+        if (i == months) {
+            // Last installment clears whatever principal remains
+            principalComponent = balance;
+            monthlyPayment = principalComponent + interest;
+            balance = 0;
+        } else {
+
+            principalComponent = monthlyPayment - interest;
+
+            if (principalComponent < 0) {
+                principalComponent = 0;
+            }
+
+            balance -= principalComponent;
+
+            if (balance < 0) {
+                balance = 0;
+            }
+        }
+
+        Payment payment = Payment.builder()
                 .paymentReference(generatePayRef(loan, i))
-                .loan(loan).organization(loan.getOrganization())
-                .installmentNumber(i).amount(round(monthly))
-                .principalComponent(round(principalC)).interestComponent(round(interest))
-                .dueDate(due).paid(false).penalty(0.0)
+                .loan(loan)
+                .organization(loan.getOrganization())
+                .installmentNumber(i)
+                .amount(round(monthlyPayment))
+                .principalComponent(round(principalComponent))
+                .interestComponent(round(interest))
+                .dueDate(due)
+                .paid(false)
+                .penalty(0.0)
                 .outstandingAfter(round(balance))
                 .status(Payment.PaymentStatus.PENDING)
                 .build();
-            paymentRepo.save(p);
-            due = holidayService.adjustToBusinessDay(orgId, due.plusMonths(1));
-        }
-        loan.setNextDueDate(holidayService.adjustToBusinessDay(orgId, loan.getStartDate() != null
-            ? loan.getStartDate().plusMonths(1) : LocalDate.now().plusMonths(1)));
-        loanRepo.save(loan);
+
+        paymentRepo.save(payment);
+
+        due = holidayService.adjustToBusinessDay(
+                orgId,
+                due.plusMonths(1)
+        );
     }
+
+    loan.setNextDueDate(
+            holidayService.adjustToBusinessDay(
+                    orgId,
+                    loan.getStartDate() != null
+                            ? loan.getStartDate().plusMonths(1)
+                            : LocalDate.now().plusMonths(1)
+            )
+    );
+
+    loanRepo.save(loan);
+}
 
     @Async
     public void scoreAsync(Loan loan) {
