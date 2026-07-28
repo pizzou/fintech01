@@ -22,11 +22,16 @@ public class PaymentScheduleGeneratorService {
 
         double principal = loan.getAmount();
 
-        double annualRate = loan.getInterestRate();
+        double rate = loan.getInterestRate();
 
-        double monthlyRate = annualRate / 100 / 12;
+        String rateType = loan.getInterestRateType() != null ? loan.getInterestRateType() : "MONTHLY";
 
-        double monthlyPrincipal = principal / months;
+        double monthlyRate = "MONTHLY".equalsIgnoreCase(rateType) ? rate / 100 : rate / 100 / 12;
+
+        double installmentAmount = monthlyRate == 0
+                ? principal / months
+                : principal * (monthlyRate * Math.pow(1 + monthlyRate, months))
+                        / (Math.pow(1 + monthlyRate, months) - 1);
 
         double remaining = principal;
 
@@ -36,7 +41,9 @@ public class PaymentScheduleGeneratorService {
 
             double interest = remaining * monthlyRate;
 
-            double installment = monthlyPrincipal + interest;
+            double installment = (i == months) ? (remaining + interest) : installmentAmount;
+
+            double monthlyPrincipal = installment - interest;
 
             remaining -= monthlyPrincipal;
 

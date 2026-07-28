@@ -81,7 +81,8 @@ public class LoanRestructuringService {
         paymentRepo.deleteAll(future);
         double bal=loan.getOutstandingBalance()!=null?loan.getOutstandingBalance():0;
         int months=loan.getDurationMonths(); double rate=loan.getInterestRate();
-        double mr=rate/100/12;
+        String rateType=loan.getInterestRateType()!=null?loan.getInterestRateType():"MONTHLY";
+        double mr="MONTHLY".equalsIgnoreCase(rateType)?rate/100:rate/100/12;
         double monthly=mr==0?bal/months:bal*(mr*Math.pow(1+mr,months))/(Math.pow(1+mr,months)-1);
         LocalDate due=LocalDate.now().plusMonths(1);
         for(int i=1;i<=months;i++){
