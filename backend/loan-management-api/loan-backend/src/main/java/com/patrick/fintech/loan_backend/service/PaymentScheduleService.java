@@ -9,7 +9,7 @@ import com.patrick.fintech.loan_backend.repository.PaymentScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
+
 import java.util.List;
 
 @Service
