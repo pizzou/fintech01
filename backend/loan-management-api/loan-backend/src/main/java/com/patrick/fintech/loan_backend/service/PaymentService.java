@@ -43,63 +43,112 @@ public class PaymentService {
         if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.OVERDUE)
             throw new RuntimeException("Loan is not active (status: " + loan.getStatus() + ")");
 
-        // Find earliest unpaid installment
+        // The next pending cycle, if the originally-generated schedule still
+        // has one queued up. Flexible-payment loans routinely outlive that
+        // schedule (e.g. months of interest-only payments extend the loan
+        // past however many rows were pre-generated at disbursement) — when
+        // that happens there's no pending row left, so we create one fresh
+        // below. Every payment always gets a ledger entry either way.
         Optional<Payment> nextInstallmentOpt = paymentRepo.findByLoanId(loanId).stream()
             .filter(p -> !p.getPaid())
             .min(java.util.Comparator.comparing(Payment::getDueDate));
 
-        boolean isLate = false;
-        int daysLate   = 0;
-        Payment installment = null;
+        LocalDate cycleDueDate = nextInstallmentOpt.map(Payment::getDueDate)
+            .orElse(loan.getNextDueDate() != null ? loan.getNextDueDate() : LocalDate.now());
 
-        if (nextInstallmentOpt.isPresent()) {
-            installment = nextInstallmentOpt.get();
-            isLate      = LocalDate.now().isAfter(installment.getDueDate());
-            if (isLate)
-                daysLate = (int) java.time.temporal.ChronoUnit.DAYS
-                    .between(installment.getDueDate(), LocalDate.now());
-        }
+        boolean isLate = LocalDate.now().isAfter(cycleDueDate);
+        int daysLate = isLate
+            ? (int) java.time.temporal.ChronoUnit.DAYS.between(cycleDueDate, LocalDate.now())
+            : 0;
 
         double penalty   = isLate ? amount * 0.02 * daysLate / 30 : 0;
-        double effective = amount - penalty;
+        double netAvailable = Math.max(0, amount - penalty);
         double balance   = loan.getOutstandingBalance() != null ? loan.getOutstandingBalance() : 0;
-        double newBalance = Math.max(0, balance - effective);
 
-        // Mark installment paid
-        if (installment != null) {
-            installment.setPaid(true);
-            installment.setPaidDate(LocalDate.now());
-            installment.setAmountPaid(amount);
-            installment.setPenalty(round(penalty));
-            installment.setOutstandingAfter(round(newBalance));
-            installment.setLate(isLate);
-            installment.setDaysLate(daysLate);
-            installment.setPaymentMethod(method);
-            installment.setTransactionId(txnId);
-            installment.setChannel(channel);
-            installment.setNotes(notes);
-            installment.setStatus(Payment.PaymentStatus.COMPLETED);
-            installment.setPaymentReference(generateRef(loan));
-            paymentRepo.save(installment);
+        // Interest is calculated fresh, every time, on whatever principal is
+        // still outstanding right now — NOT on the original loan amount, and
+        // NOT assumed to already be baked into whatever figure the borrower
+        // decided to pay. This is what makes a flexible payment amount safe:
+        // however much the borrower hands over, interest owed on the current
+        // balance is always taken out first, and only what's left over ever
+        // reduces principal — exactly like a running microfinance ledger.
+        double rate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
+        String rateType = loan.getInterestRateType() != null ? loan.getInterestRateType() : "MONTHLY";
+        double monthlyRate = "MONTHLY".equalsIgnoreCase(rateType) ? rate / 100.0 : rate / 100.0 / 12.0;
+        double interestDue = round(balance * monthlyRate);
+
+        double interestPaid  = Math.min(netAvailable, interestDue);
+        double principalPaid = Math.min(netAvailable - interestPaid, balance);
+        double newBalance    = round(Math.max(0, balance - principalPaid));
+
+        // A cycle counts as settled once its interest is covered — however
+        // much (or little) principal came off on top of that is a bonus,
+        // not a requirement, since a flexible-payment loan has no fixed
+        // installment amount that must be hit every month.
+        boolean interestCovered = netAvailable >= interestDue - 0.01;
+        boolean fullyPaidOff    = newBalance <= 0.01;
+
+        Payment installment = nextInstallmentOpt.orElse(null);
+        if (installment == null) {
+            int nextNumber = paymentRepo.findByLoanId(loanId).size() + 1;
+            installment = Payment.builder()
+                .loan(loan)
+                .organization(loan.getOrganization())
+                .installmentNumber(nextNumber)
+                .dueDate(cycleDueDate)
+                .amountPaid(0.0)
+                .build();
         }
+
+        installment.setPaid(interestCovered || fullyPaidOff);
+        installment.setPaidDate(LocalDate.now());
+        installment.setAmountPaid(round((installment.getAmountPaid() != null ? installment.getAmountPaid() : 0) + amount));
+        installment.setPrincipalComponent(round(principalPaid));
+        installment.setInterestComponent(round(interestPaid));
+        installment.setPenalty(round(penalty));
+        installment.setOutstandingAfter(newBalance);
+        installment.setLate(isLate);
+        installment.setDaysLate(daysLate);
+        installment.setPaymentMethod(method);
+        installment.setTransactionId(txnId);
+        installment.setChannel(channel);
+        installment.setNotes(notes);
+        installment.setStatus(interestCovered || fullyPaidOff
+            ? Payment.PaymentStatus.COMPLETED
+            : Payment.PaymentStatus.PARTIALLY_PAID);
+        installment.setPaymentReference(generateRef(loan));
+        paymentRepo.save(installment);
 
         // Update loan
         loan.setTotalPaid(round((loan.getTotalPaid() != null ? loan.getTotalPaid() : 0) + amount));
-        loan.setOutstandingBalance(round(newBalance));
+        loan.setOutstandingBalance(newBalance);
         loan.setLastPaymentDate(LocalDate.now());
 
-        if (newBalance <= 0) {
+        if (fullyPaidOff) {
             loan.setStatus(LoanStatus.PAID);
+            // Any rows still pending from the original projected schedule are
+            // no longer owed — clear them so a fully paid loan doesn't keep
+            // showing future installments as outstanding on the dashboard.
+            // (installmentId, not installment, is captured here: installment
+            // itself is reassigned earlier in this method, so it isn't
+            // "effectively final" and can't be referenced inside a lambda.)
+            Long installmentId = installment.getId();
+            List<Payment> stillPending = paymentRepo.findByLoanId(loanId).stream()
+                .filter(p -> !p.getPaid() && !p.getId().equals(installmentId))
+                .toList();
+            paymentRepo.deleteAll(stillPending);
         } else {
             loan.setStatus(LoanStatus.ACTIVE);
-            // Advance next due date
-            if (installment != null)
-                loan.setNextDueDate(installment.getDueDate().plusMonths(1));
+            // Only roll forward to next month once this cycle's interest has
+            // actually been covered — an interest shortfall keeps the same
+            // cycle "next due" so it isn't silently skipped over.
+            if (interestCovered)
+                loan.setNextDueDate(cycleDueDate.plusMonths(1));
         }
         loanRepo.save(loan);
 
         audit(loan.getOrganization(), recordedBy, "PAYMENT_RECORDED", "PAYMENT",
-              installment != null ? installment.getId().toString() : "manual",
+              installment.getId().toString(),
               "Payment of " + amount + " on loan " + loan.getReferenceNumber());
 
         try { mailService.sendPaymentConfirmation(loan, amount); } catch (Exception e) { log.warn("Notif failed", e); }
@@ -117,7 +166,7 @@ public class PaymentService {
             } catch (Exception e) { log.warn("In-app notification failed", e); }
         }
         webhookService.dispatch(loan.getOrganization(), "PAYMENT_MADE", loan);
-        if (installment != null) accountingService.postPaymentReceived(installment);
+        accountingService.postPaymentReceived(installment);
 
         return installment;
     }

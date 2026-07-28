@@ -6,10 +6,8 @@ import com.patrick.fintech.loan_backend.dto.publicportal.PaymentHistoryResponse;
 import com.patrick.fintech.loan_backend.dto.publicportal.UpcomingInstallmentResponse;
 import com.patrick.fintech.loan_backend.model.Loan;
 import com.patrick.fintech.loan_backend.model.Payment;
-import com.patrick.fintech.loan_backend.model.PaymentSchedule;
 import com.patrick.fintech.loan_backend.repository.LoanRepository;
 import com.patrick.fintech.loan_backend.repository.PaymentRepository;
-import com.patrick.fintech.loan_backend.repository.PaymentScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +21,6 @@ public class PublicPortalService {
 
     private final LoanRepository loanRepository;
     private final PaymentRepository paymentRepository;
-    private final PaymentScheduleRepository paymentScheduleRepository;
 
     public BorrowerDashboardResponse getDashboard(BorrowerDashboardRequest request) {
 
@@ -87,24 +84,27 @@ public class PublicPortalService {
         //----------------------------------------------------
         // Upcoming Installments
         //----------------------------------------------------
+        // Sourced from the live payment ledger (the same table
+        // PaymentService.recordPayment() updates on every real payment) —
+        // not the one-time projected schedule generated at disbursement,
+        // which never changes once a borrower starts paying flexible
+        // amounts and would otherwise drift out of sync with reality.
 
         List<UpcomingInstallmentResponse> upcomingInstallments =
-                paymentScheduleRepository
-                        .findByLoanIdOrderByInstallmentNumberAsc(
-                                loan.getId())
+                paymentRepository
+                        .findByLoanId(loan.getId())
                         .stream()
-                        .filter(s ->
-                                s.getStatus()
-                                        == PaymentSchedule.ScheduleStatus.PENDING)
+                        .filter(p -> !p.getPaid())
+                        .sorted(java.util.Comparator.comparing(Payment::getDueDate))
                         .limit(6)
-                        .map(schedule ->
+                        .map(payment ->
                                 UpcomingInstallmentResponse.builder()
-                                        .installmentNumber(schedule.getInstallmentNumber())
-                                        .dueDate(schedule.getDueDate())
-                                        .amount(schedule.getInstallmentAmount())
-                                        .principal(schedule.getPrincipalAmount())
-                                        .interest(schedule.getInterestAmount())
-                                        .status(schedule.getStatus().name())
+                                        .installmentNumber(payment.getInstallmentNumber())
+                                        .dueDate(payment.getDueDate())
+                                        .amount(payment.getAmount())
+                                        .principal(payment.getPrincipalComponent())
+                                        .interest(payment.getInterestComponent())
+                                        .status(payment.getStatus() != null ? payment.getStatus().name() : "PENDING")
                                         .build())
                         .toList();
 
