@@ -312,7 +312,7 @@ if (loan.getStatus() == LoanStatus.OVERDUE) {
     }
 
     @Transactional
-    public Loan approveLoan(Long loanId, User approvedBy, String notes) {
+    public Loan approveLoan(Long loanId, User approvedBy, String notes, Double newInterestRate) {
         Loan loan = getLoanForOrg(loanId, approvedBy.getOrganization().getId());
 
         if (loan.getStatus() != LoanStatus.PENDING && loan.getStatus() != LoanStatus.UNDER_REVIEW) {

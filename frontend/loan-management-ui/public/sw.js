@@ -18,10 +18,6 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-self.addEventListener('online', () => {
-  console.log('Internet restored');
-});
-
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -37,14 +33,21 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
+  // Only ever intercept same-origin requests — this app's own pages and static assets.
+  // Cross-origin calls (the backend API, on a different domain) are deliberately left
+  // untouched: if one of those fails, it's the app's own axios error handling that
+  // should surface the real cause (a CORS block, a cold-starting server, a genuine
+  // 5xx) — not this service worker silently replacing it with a fabricated
+  // "You are offline" response that may have nothing to do with actual connectivity.
+  if (url.origin !== self.location.origin) return;
+
   // Never cache auth/sensitive API calls — always require a live network round-trip
   if (url.pathname.startsWith('/api/auth')) return;
 
   event.respondWith(
     fetch(request)
       .then((response) => {
-        // Only cache same-origin, successful responses
-        if (response.ok && url.origin === self.location.origin) {
+        if (response.ok) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         }

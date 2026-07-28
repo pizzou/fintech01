@@ -54,7 +54,15 @@ export const loanApi = {
     get(`/loans?page=${page}&size=${size}${status?`&status=${status}`:''}${type?`&type=${type}`:''}`),
   get:        (id: number)                => get(`/loans/${id}`),
   create:     (data: unknown)             => post('/loans', data),
-  approve:    (id: number, notes='')      => post(`/loans/${id}/approve`, { notes }),
+  approve: (
+    id: number,
+    notes = '',
+    interestRate?: number
+  ) =>
+    post(`/loans/${id}/approve`, {
+      notes,
+      interestRate,
+    }),
   reject:     (id: number, reason: string)=> post(`/loans/${id}/reject`, { reason }),
   disburse:   (id: number, method: string)=> post(`/loans/${id}/disburse`, { disbursementMethod: method }),
   updateStatus:(id: number, status: string, notes?: string) => post(`/loans/${id}/status`, { status, notes }),

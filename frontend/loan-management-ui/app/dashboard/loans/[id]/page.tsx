@@ -48,7 +48,7 @@ export default function LoanDetailPage() {
 
   // Status modal
   const [stOpen, setStOpen]     = useState(false);
-  const [stForm, setStForm]     = useState({ status: '', rejectionReason: '', internalNotes: '' });
+  const [stForm, setStForm]     = useState({ status: '', rejectionReason: '', internalNotes: '', interestRate: '' });
   const [stSaving, setStSaving] = useState(false);
   const [cbBusy, setCbBusy]     = useState(false);
   const [esignBusy, setEsignBusy] = useState(false);
@@ -139,7 +139,7 @@ export default function LoanDetailPage() {
   const handleStatus = async (e: React.FormEvent) => {
     e.preventDefault(); setStSaving(true); setMsg(null);
     try {
-      if (stForm.status === 'APPROVED')  await loanApi.approve(Number(id), stForm.internalNotes);
+      if (stForm.status === 'APPROVED')  await loanApi.approve(Number(id), stForm.internalNotes, stForm.interestRate ? Number(stForm.interestRate) : undefined);
       else if (stForm.status === 'REJECTED') await loanApi.reject(Number(id), stForm.rejectionReason);
       else if (stForm.status === 'DISBURSED') await loanApi.disburse(Number(id), 'BANK_TRANSFER');
       else if (stForm.status) await loanApi.updateStatus(Number(id), stForm.status, stForm.internalNotes);
@@ -616,6 +616,35 @@ export default function LoanDetailPage() {
               })()}
             </Select>
           </FormGroup>
+          {stForm.status === 'APPROVED' && (
+            <FormGroup label={`Interest Rate ${loan.interestRateType === 'MONTHLY' ? '(monthly)' : '(annual)'}`}>
+              <p className="text-xs text-gray-400 mb-2">
+                Applied on the website at <strong>{loan.interestRate}%</strong>. Loans are flexible — adjust it here if this borrower should get a different rate; leave it as-is to keep the original.
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                {['6', '8', '10'].map(r => (
+                  <button key={r} type="button"
+                    onClick={() => setStForm(f => ({ ...f, interestRate: r }))}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                      stForm.interestRate === r ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                    }`}>
+                    {r}%
+                  </button>
+                ))}
+                <button type="button"
+                  onClick={() => setStForm(f => ({ ...f, interestRate: '' }))}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                    stForm.interestRate === '' ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}>
+                  Keep {loan.interestRate}%
+                </button>
+                <input type="number" step="0.1" min="0" placeholder="Custom %"
+                  value={['6','8','10',''].includes(stForm.interestRate) ? '' : stForm.interestRate}
+                  onChange={e => setStForm(f => ({ ...f, interestRate: e.target.value }))}
+                  className="w-28 px-3 py-2 rounded-lg text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500" />
+              </div>
+            </FormGroup>
+          )}
           {stForm.status === 'REJECTED' && (
             <FormGroup label="Rejection Reason" required>
               <Textarea required value={stForm.rejectionReason} onChange={e => setStForm(f => ({...f, rejectionReason: e.target.value}))} />

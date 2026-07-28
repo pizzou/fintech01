@@ -80,6 +80,13 @@ public class LoanApprovalService {
      */
     @Transactional
     public LoanApproval decide(Long loanId, User decider, String decision, String comments) {
+        return decide(loanId, decider, decision, comments, null);
+    }
+
+    /** @param newInterestRate only used when this decision is the final APPROVED step in the
+     *                         chain — passed straight through to LoanService.approveLoan(). */
+    @Transactional
+    public LoanApproval decide(Long loanId, User decider, String decision, String comments, Double newInterestRate) {
         Loan loan = loanService.getLoanForOrg(loanId, decider.getOrganization().getId());
 
         List<LoanApproval> chain = approvalRepo.findByLoan_IdOrderByStepOrderAsc(loanId);
@@ -121,8 +128,6 @@ public class LoanApprovalService {
             step.getStepName() + " — " + step.getStatus() + (comments != null && !comments.isBlank() ? ": " + comments : ""));
 
         if (!approved) {
-            // One rejection anywhere in the chain rejects the whole loan — no need for
-            // every remaining checker to also weigh in on a loan that's already dead.
             loanService.rejectLoan(loanId, decider, comments != null ? comments : "Rejected at " + step.getStepName());
             return step;
         }
@@ -130,7 +135,7 @@ public class LoanApprovalService {
         boolean allApproved = approvalRepo.findByLoan_IdOrderByStepOrderAsc(loanId).stream()
             .allMatch(a -> "APPROVED".equals(a.getStatus()));
         if (allApproved) {
-            loanService.approveLoan(loanId, decider, "Approved via " + chain.size() + "-step maker-checker chain");
+            loanService.approveLoan(loanId, decider, "Approved via " + chain.size() + "-step maker-checker chain", newInterestRate);
         }
 
         return step;

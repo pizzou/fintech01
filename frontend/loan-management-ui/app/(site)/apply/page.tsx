@@ -324,7 +324,7 @@ export default function ApplyPage() {
                 </Field>
                 <Field label="Repayment Period" required>
                   <select required className={inp} value={form.durationMonths} onChange={set('durationMonths')}>
-                    {[1,2,3,4,5,6,7,8,9,10,11,12].map(m=><option key={m} value={m}>{m} months</option>)}
+                    {[1,2,3,4,5,6,7,8,9,10,11,12].map(m=><option key={m} value={m}>{m} month{m>1?'s':''}</option>)}
                   </select>
                 </Field>
               </div>
@@ -343,13 +343,10 @@ export default function ApplyPage() {
                     {(() => {
                       const principal = Number(form.amount);
                       const months = Number(form.durationMonths);
-                      
-                      // 10% monthly flat interest calculation formulas
-                      const flatMonthlyRate = 0.10; 
-                      const monthlyInterest = principal * flatMonthlyRate;
-                      const monthlyPrincipal = principal / months;
-                      const monthly = monthlyPrincipal + monthlyInterest;
-                      
+                      const mr: number = 0.10;
+                      const monthly = mr === 0
+                        ? principal / months
+                        : principal * (mr * Math.pow(1 + mr, months)) / (Math.pow(1 + mr, months) - 1);
                       return [
                         ['Monthly', `${tenant.currency} ${monthly.toLocaleString('en', { maximumFractionDigits: 0 })}`],
                         ['Total',   `${tenant.currency} ${(monthly * months).toLocaleString('en', { maximumFractionDigits: 0 })}`],
