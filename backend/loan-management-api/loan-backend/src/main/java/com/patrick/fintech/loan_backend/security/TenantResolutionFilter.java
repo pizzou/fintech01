@@ -12,13 +12,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Optional;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class TenantResolutionFilter extends OncePerRequestFilter {
 
-    private final OrganizationRepository orgRepo;
+    private final OrganizationRepository organizationRepository;
 
     @Override
     protected void doFilterInternal(
@@ -28,142 +29,200 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         try {
-            String domain = null;
+            /*
+             * IMPORTANT:
+             *
+             * Browser:
+             *   https://growthfinance.rw
+             *
+             * calls:
+             *   https://fintech01.onrender.com
+             *
+             * Therefore request.getServerName() is:
+             *   fintech01.onrender.com
+             *
+             * NOT:
+             *   growthfinance.rw
+             *
+             * So we first check X-Tenant-Domain, which the frontend sends.
+             */
+
+            String domain = request.getHeader("X-Tenant-Domain");
 
             /*
-             * 1. Explicit tenant domain supplied by the frontend.
+             * If X-Tenant-Domain wasn't supplied, fall back to Origin.
              *
              * Example:
-             *
-             * X-Tenant-Domain: growthfinance.rw
+             * Origin: https://growthfinance.rw
              */
-            String tenantHeader = request.getHeader("X-Tenant-Domain");
-
-            if (tenantHeader != null && !tenantHeader.isBlank()) {
-                domain = normalizeHost(tenantHeader);
+            if (domain == null || domain.isBlank()) {
+                domain = extractDomainFromOrigin(request.getHeader("Origin"));
             }
 
             /*
-             * 2. If there is no explicit tenant domain, try the Host.
+             * Last fallback: the API hostname itself.
              *
-             * This works when the borrower/customer accesses:
-             *
-             * https://growthfinance.rw
-             *
-             * and that request is proxied to the backend.
-             *
-             * It will NOT identify a tenant when the request is sent
-             * directly to:
-             *
-             * https://fintech01.onrender.com
+             * This is useful for direct API requests/local testing.
              */
-            if (domain == null) {
-                domain = normalizeHost(request.getHeader("Host"));
+            if (domain == null || domain.isBlank()) {
+                domain = request.getServerName();
             }
 
+            domain = normalizeDomain(domain);
+
+            log.info(
+                "[TENANT] {} {} | X-Tenant-Domain={} | Origin={} | ResolvedDomain={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                request.getHeader("X-Tenant-Domain"),
+                request.getHeader("Origin"),
+                domain
+            );
+
             /*
-             * Make the value final before using it in lambdas.
+             * Clear any previous tenant from the current thread.
              */
-            final String resolvedDomain = domain;
+            TenantContext.clear();
 
-            if (resolvedDomain != null) {
+            /*
+             * Don't try to resolve obvious infrastructure/local hosts.
+             */
+            if (domain != null && !domain.isBlank()) {
 
-                orgRepo
-                    .findByDomainIgnoreCaseAndDomainVerifiedTrue(resolvedDomain)
-                    .ifPresentOrElse(
-                        organization -> {
+                Optional<Organization> organization =
+                        organizationRepository.findByDomainIgnoreCase(domain);
 
-                            TenantContext.set(organization);
+                if (organization.isPresent()) {
 
-                            log.debug(
-                                "Resolved tenant '{}' from domain '{}'",
-                                organization.getName(),
-                                resolvedDomain
-                            );
-                        },
+                    Organization org = organization.get();
 
-                        () -> {
+                    TenantContext.set(org);
 
-                            log.debug(
-                                "No verified organization found for domain '{}'",
-                                resolvedDomain
-                            );
-                        }
+                    log.info(
+                        "[TENANT] Resolved organization '{}' (id={}) from domain '{}'",
+                        org.getName(),
+                        org.getId(),
+                        domain
                     );
+
+                } else {
+
+                    log.warn(
+                        "[TENANT] No organization found for domain '{}'",
+                        domain
+                    );
+                }
             }
 
-            /*
-             * Always continue the request.
-             *
-             * The filter itself does NOT reject requests when no tenant
-             * can be resolved.
-             */
             filterChain.doFilter(request, response);
 
         } finally {
 
             /*
-             * VERY IMPORTANT.
+             * VERY IMPORTANT:
              *
-             * TenantContext is usually backed by ThreadLocal.
-             * Clear it after every request because application-server
-             * threads are reused.
+             * TenantContext normally uses ThreadLocal.
+             * We must clear it after every request so one tenant
+             * cannot leak into another request.
              */
             TenantContext.clear();
         }
     }
 
     /**
-     * Normalizes a domain.
+     * Extract hostname from:
      *
-     * Examples:
+     * https://growthfinance.rw
+     * https://www.growthfinance.rw/
      *
-     * www.growthfinance.rw:443 -> growthfinance.rw
-     * growthfinance.rw        -> growthfinance.rw
-     * WWW.GROWTHFINANCE.RW     -> growthfinance.rw
+     * Returns:
+     * growthfinance.rw
      */
-    private String normalizeHost(String host) {
+    private String extractDomainFromOrigin(String origin) {
 
-        if (host == null || host.isBlank()) {
+        if (origin == null || origin.isBlank()) {
             return null;
         }
 
-        String h = host.trim().toLowerCase();
+        try {
 
-        /*
-         * Remove protocol if somebody accidentally sends it.
-         */
-        if (h.startsWith("https://")) {
-            h = h.substring(8);
-        } else if (h.startsWith("http://")) {
-            h = h.substring(7);
+            java.net.URI uri = java.net.URI.create(origin);
+
+            return uri.getHost();
+
+        } catch (Exception e) {
+
+            log.warn(
+                "[TENANT] Could not parse Origin '{}'",
+                origin
+            );
+
+            return null;
+        }
+    }
+
+    /**
+     * Converts:
+     *
+     * https://growthfinance.rw
+     * http://growthfinance.rw/
+     * www.growthfinance.rw
+     * growthfinance.rw:443
+     *
+     * into:
+     *
+     * growthfinance.rw
+     */
+    private String normalizeDomain(String domain) {
+
+        if (domain == null || domain.isBlank()) {
+            return null;
         }
 
-        /*
-         * Remove path.
-         */
-        int slash = h.indexOf('/');
+        String result = domain.trim().toLowerCase();
 
-        if (slash >= 0) {
-            h = h.substring(0, slash);
+        /*
+         * If somebody accidentally sends a full URL,
+         * extract only the hostname.
+         */
+        if (result.startsWith("http://") || result.startsWith("https://")) {
+
+            try {
+
+                result = java.net.URI.create(result).getHost();
+
+            } catch (Exception e) {
+
+                log.warn(
+                    "[TENANT] Invalid tenant domain '{}'",
+                    domain
+                );
+
+                return null;
+            }
         }
 
         /*
          * Remove port.
          */
-        int colon = h.indexOf(':');
-
-        if (colon >= 0) {
-            h = h.substring(0, colon);
+        if (result.contains(":")) {
+            result = result.substring(0, result.indexOf(":"));
         }
 
         /*
          * Remove www.
          */
-        if (h.startsWith("www.")) {
-            h = h.substring(4);
+        if (result.startsWith("www.")) {
+            result = result.substring(4);
         }
 
-        return h.isBlank() ? null : h;
+        /*
+         * Remove trailing dot.
+         */
+        if (result.endsWith(".")) {
+            result = result.substring(0, result.length() - 1);
+        }
+
+        return result;
     }
 }

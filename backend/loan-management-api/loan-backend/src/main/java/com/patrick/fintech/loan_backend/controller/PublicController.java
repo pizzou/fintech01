@@ -20,12 +20,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/**
- * Public-facing API — NO authentication required.
- * Serves this bank's own branding config and accepts online loan applications
- * from the public website. Single-tenant: every endpoint here resolves to this
- * deployment's one organization, not a directory of tenants.
- */
+
 @RestController
 @RequestMapping("/api/public")
 @RequiredArgsConstructor
@@ -52,10 +47,7 @@ public class PublicController {
     private final PaymentRepository      paymentRepo;
     private final ReportExportService    exportService;
 
-    /**
-     * Public "Contact Us" form submission — notifies the org's staff in-app
-     * so it doesn't disappear into the void (previously the frontend form was decorative only).
-     */
+   
     @PostMapping("/contact")
     public ResponseEntity<ApiResponse<String>> submitContact(@RequestBody Map<String,Object> body) {
         String slug = str(body.get("tenantSlug"));
@@ -109,13 +101,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
 
             loanService.getBorrowerSummary(phone));
 }
-    /**
-     * Lets an applicant check their loan application status from the public
-     * website using the reference number they were given at submission, plus
-     * the phone number on the application as a lightweight ownership check
-     * (this endpoint has no auth — the phone match keeps a reference number
-     * alone, which is guessable, from exposing anyone else's application).
-     */
+   
     @GetMapping("/applications/{reference}/status")
     @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<Map<String,Object>>> trackApplication(
@@ -144,12 +130,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    /**
-     * KYC document upload for an applicant who already has a reference number —
-     * used both right after submitting an application and later from the
-     * tracking page if something was missed. Same phone-match ownership check
-     * as tracking; no session/login involved.
-     */
+   
    @PostMapping("/applications/{reference}/documents")
     @Transactional
     public ResponseEntity<ApiResponse<Map<String,Object>>> uploadApplicationDocument(
@@ -202,16 +183,6 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         return ResponseEntity.ok(ApiResponse.ok(docs));
     }
 
-    /**
-     * Lets an applicant remove a document they uploaded by mistake (wrong file, wrong page,
-     * blurry photo) and re-upload a corrected one. Restricted to files:
-     *   - actually uploaded by an applicant (not something staff attached themselves), and
-     *   - belonging to THIS borrower (ownership re-checked here, not just at the loan level —
-     *     a file ID alone must never be enough to delete someone else's document), and
-     *   - not yet VERIFIED — once a loan officer has signed off on a document, an applicant
-     *     can no longer make it disappear out from under that review. Documents that are
-     *     PENDING_VERIFICATION, REJECTED, or REPLACEMENT_REQUESTED can still be removed.
-     */
     @DeleteMapping("/applications/{reference}/documents/{fileId}")
     @Transactional
     public ResponseEntity<ApiResponse<Void>> deleteApplicationDocument(
@@ -271,18 +242,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         return sb.toString().trim();
     }
 
-    /**
-     * Lets a borrower pay their loan themselves from the tracking page — card, mobile
-     * money, or bank transfer, via the same Flutterwave integration staff use internally
-     * (see PaymentGatewayController). Same phone-match ownership check as the rest of
-     * this controller; no session/login involved.
-     *
-     * If "amount" isn't supplied, defaults to the next installment due, falling back to
-     * the full outstanding balance if there's no scheduled installment on record.
-     *
-     * Card/bank-transfer/most mobile-money charges are asynchronous — Flutterwave confirms
-     * them later via webhook (PaymentWebhookController), not in this response.
-     */
+   
     @PostMapping("/applications/{reference}/payments/initiate")
     @Transactional
     public ResponseEntity<ApiResponse<Map<String,Object>>> initiatePublicPayment(
@@ -343,8 +303,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         }
 
         if ("pending".equals(gw.getStatus())) {
-            // Real mobile money / bank transfer — waiting on the borrower to approve on their
-            // phone, or on bank settlement. The webhook completes this, NOT this response.
+           
             result.put("recorded", false);
             auditService.log(loan.getOrganization(), null, "PUBLIC_PAYMENT_INITIATED", "LOAN", loan.getId().toString(),
                 "Borrower self-service payment of " + dueAmount + " " + loan.getCurrency() + " initiated (pending confirmation) for loan " + loan.getReferenceNumber());
@@ -355,7 +314,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         throw new RuntimeException("Payment failed: " + gw.getMessage());
     }
 
-    /** Loan agreement — key terms, as a downloadable PDF. */
+    
     @GetMapping("/applications/{reference}/documents/agreement.pdf")
     public ResponseEntity<byte[]> downloadAgreement(@PathVariable String reference, @RequestParam String phone) {
         Loan loan = verifyOwnership(reference, phone);
@@ -363,15 +322,12 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         return pdfResponse(pdf, "Loan-Agreement-" + loan.getReferenceNumber());
     }
 
-    /** Full installment-by-installment repayment schedule, as a downloadable PDF. */
+    
     @GetMapping("/applications/{reference}/documents/schedule.pdf")
     public ResponseEntity<byte[]> downloadSchedule(@PathVariable String reference, @RequestParam String phone) {
         Loan loan = verifyOwnership(reference, phone);
         List<String> columns = List.of("#", "Due Date", "Principal", "Interest", "Total", "Balance", "Status");
-        // Sourced from the live payment ledger (the same table PaymentService.recordPayment()
-        // updates on every real payment) — not the one-time schedule generated at
-        // disbursement, which never changes once the borrower starts paying flexible
-        // amounts and would otherwise show a schedule that no longer matches reality.
+       
         List<Map<String,Object>> rows = paymentRepo.findByLoanId(loan.getId()).stream()
             .sorted(java.util.Comparator.comparing(Payment::getInstallmentNumber))
             .map(p -> {
@@ -442,13 +398,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         return rows;
     }
 
-    /**
-     * Looks up an application by reference and confirms the caller knows the
-     * phone number on file — the only "auth" a public, session-less endpoint
-     * like this has. A reference number alone is guessable/sequential, so
-     * without this check anyone could pull up (or upload documents into)
-     * a stranger's application.
-     */
+   
     private Loan verifyOwnership(String reference, String phone) {
         Loan loan = loanRepo.findByReferenceNumber(reference.trim().toUpperCase())
             .orElseThrow(() -> new RuntimeException("We couldn't find an application with that reference number."));
@@ -460,7 +410,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         return loan;
     }
 
-    /** Applicant-facing plain-English label for each internal status. */
+    
     private String statusLabel(LoanStatus status) {
         return switch (status) {
             case PENDING, UNDER_REVIEW -> "Under Review";
@@ -496,12 +446,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         return steps;
     }
 
-    /**
-     * The richer 9-stage tracker for the borrower dashboard — aware of document
-     * upload/verification state and credit assessment, not just the coarse loan
-     * status. Same {label, complete, failed} shape as statusSteps() above, so the
-     * existing generic step-renderer on the frontend needs no changes to show it.
-     */
+    
     private List<Map<String,Object>> progressSteps(Loan loan) {
         LoanStatus status = loan.getStatus();
         boolean failedApplication = status == LoanStatus.REJECTED || status == LoanStatus.CANCELLED;
@@ -539,11 +484,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         return steps;
     }
 
-    /**
-     * A dated event log built from real, already-recorded timestamps (loan lifecycle
-     * dates, document upload/verification dates, per-installment paid dates) — not a
-     * separate tracking mechanism, so there's nothing new to keep in sync.
-     */
+   
     private List<Map<String,Object>> timeline(Loan loan) {
         List<Map.Entry<LocalDateTime,String>> raw = new ArrayList<>();
 
@@ -580,15 +521,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
             .collect(java.util.stream.Collectors.toList());
     }
 
-    /**
-     * Returns tenant branding, services config, and contact info for the
-     * public website — the org is resolved purely from the request's Host
-     * header (TenantResolutionFilter / TenantContext), no slug needed.
-     * This is the endpoint the Next.js frontend should call on every page
-     * load: GET https://www.growthfinance.rw/api/public/organization ->
-     * this backend, running once, returns Growth Finance's own config.
-     * Returns 404 if the current Host isn't mapped to any Organization.domain.
-     */
+   
     @GetMapping("/organization")
     public ResponseEntity<ApiResponse<Map<String,Object>>> getOrganizationForCurrentDomain() {
         Organization org = TenantContext.get();
@@ -599,11 +532,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         return ResponseEntity.ok(ApiResponse.ok(buildTenantConfig(org, null)));
     }
 
-    /**
-     * Legacy path kept for local dev / staging hosts that aren't mapped to a
-     * real domain yet — identified by URL slug or registration number
-     * instead of Host header. Prefer /api/public/organization in production.
-     */
+    
     @GetMapping("/tenant/{slug}")
     public ResponseEntity<ApiResponse<Map<String,Object>>> getTenantConfig(@PathVariable String slug) {
         Organization org = resolveOrg(slug);
@@ -657,16 +586,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         return config;
     }
 
-    /**
-     * Accepts a public loan application submitted from the website.
-     * Finds-or-creates the borrower, creates a PENDING loan for staff to
-     * review, notifies the org's staff in-app, and confirms to the applicant
-     * by SMS — all fully persisted (this used to only log to the console).
-     *
-     * Required fields: phone, firstName, amount, email, gender, maritalStatus,
-     * and nationalId (must be exactly 16 digits). All are validated up-front
-     * before any borrower record is touched.
-     */
+   
         @PostMapping("/loan-application")
     @Transactional
     public ResponseEntity<ApiResponse<Map<String,Object>>> submitApplication(
@@ -885,19 +805,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         return products;
     }
 
-    // ---- Helpers ----
-
-    /**
-     * Resolves the organization for this request.
-     *
-     * 1. Preferred path: TenantResolutionFilter already matched the request's
-     *    Host header (e.g. www.growthfinance.rw) to an Organization.domain
-     *    and stashed it in TenantContext — that's what production traffic
-     *    hitting a real customer domain will use, and `slug` is ignored.
-     * 2. Fallback: no domain match (local dev on localhost, a staging URL
-     *    that isn't mapped yet, or an old client still sending tenantSlug) —
-     *    match the slug against org name / registration number, as before.
-     */
+   
     private Organization resolveOrg(String slug) {
         Organization fromDomain = TenantContext.get();
         if (fromDomain != null) return fromDomain;

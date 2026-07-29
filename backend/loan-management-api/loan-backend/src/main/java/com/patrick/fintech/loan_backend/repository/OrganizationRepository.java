@@ -13,11 +13,6 @@ public interface OrganizationRepository extends JpaRepository<Organization, Long
     /** Any org claiming this domain, verified or not — used for uniqueness checks during self-service claim. */
     Optional<Organization> findByDomainIgnoreCase(String domain);
 
-    /**
-     * The org that has actually PROVEN ownership of this domain. Used by
-     * TenantResolutionFilter and SecurityConfig's CORS check — a domain
-     * someone typed into their dashboard but hasn't verified via DNS TXT
-     * record never resolves traffic or gets a CORS pass through this method.
-     */
+
     Optional<Organization> findByDomainIgnoreCaseAndDomainVerifiedTrue(String domain);
 }
