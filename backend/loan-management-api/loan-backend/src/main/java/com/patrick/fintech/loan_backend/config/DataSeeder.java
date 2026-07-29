@@ -10,16 +10,19 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 
 /**
- * Bootstraps the single production organization (Growth Finance Services Ltd) on first
- * startup — roles, the real admin account (from BOOTSTRAP_ADMIN_* env vars), chart of
- * accounts, and the org's real loan products. Skipped if an organization already exists
- * (idempotent).
+ * Bootstraps this platform's organizations on first startup — Growth Finance
+ * Services Ltd (the original tenant) and Noble Loan Solutions (added via
+ * ensureNobleLoanSolutions, see its own doc for why it's structured
+ * differently). Also bootstraps the platform-level SUPER_ADMIN account
+ * (ensureSuperAdmin). Each of these three is independently idempotent, so
+ * this class is safe to leave in place and redeploy indefinitely.
  *
- * No demo borrowers, loans, or extra staff accounts are created — this file previously
- * hardcoded fictional borrowers, their loans, and a demo Loan Officer account with a
- * published password. Publishing fixed credentials in source is a real security exposure
- * once this repo is anywhere (same class of issue previously fixed for JWT_SECRET and
- * DB_PASSWORD), and fake borrower/loan records have no place in a live production database.
+ * No demo borrowers, loans, or extra staff accounts are created — this file
+ * previously hardcoded fictional borrowers, their loans, and a demo Loan
+ * Officer account with a published password. Publishing fixed credentials
+ * in source is a real security exposure once this repo is anywhere (same
+ * class of issue previously fixed for JWT_SECRET and DB_PASSWORD), and fake
+ * borrower/loan records have no place in a live production database.
  */
 @Component
 @RequiredArgsConstructor
@@ -35,10 +38,10 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        // Independent of org seeding below — this must still run even though
-        // Growth Finance (and its org row) already exists in production, or
-        // there would be no way to reach the /api/super-admin/** endpoints.
+        // Independent of Growth Finance's org seeding below — so this keeps
+        // working on every future redeploy without needing an empty database.
         ensureSuperAdmin();
+        ensureNobleLoanSolutions();
 
         if (orgRepo.count() > 0) {
             log.info("Data already seeded — skipping DataSeeder");
@@ -110,6 +113,62 @@ public class DataSeeder implements CommandLineRunner {
         log.info("║  {} — admin login: {}", growth.getName(), bootstrapAdminEmail);
         log.info("╚══════════════════════════════════════════════════════════════╝");
         log.info("");
+    }
+
+    /**
+     * Second organization, onboarded the same way Growth Finance was —
+     * hardcoded here since there's no website/domain for it yet (per your
+     * plan to build that later). Idempotent on registrationNumber, so this
+     * is safe to leave in place across every future deploy — it runs once,
+     * then no-ops forever after.
+     *
+     * NOTE: this "edit code, redeploy" pattern is fine for a couple of
+     * organizations you're onboarding personally, but it's not how you
+     * should add organization #3 onward once you're taking on clients at
+     * volume — use POST /api/super-admin/organizations instead (see
+     * SuperAdminOrganizationController), which needs no redeploy at all.
+     */
+    private void ensureNobleLoanSolutions() {
+        String regNumber = "REG-NLS-001";
+        if (orgRepo.existsByRegistrationNumber(regNumber)) return;
+
+        Role adminRole = ensureRole("ADMIN", "Full platform access");
+
+        // Edit these branding/contact defaults directly — every field here is also
+        // editable live from Dashboard → Settings → Website once staff can log in.
+        // No `domain` set yet — the public site isn't built, so this org simply
+        // won't resolve on any hostname until you assign one (see
+        // SuperAdminOrganizationController.setDomain or the self-service
+        // /api/organizations/me/domain flow) once the site exists.
+        Organization noble = orgRepo.save(Organization.builder()
+            .name("Noble Loan Solutions").industry("Microfinance").country("RW")
+            .defaultCurrency("RWF").timezone("Africa/Kigali").locale("en-RW")
+            .primaryColor("#1B3A6B").accentColor("#D4A017")
+            .registrationNumber(regNumber)
+            .subscriptionTier(Organization.SubscriptionTier.TRIAL)
+            .status(Organization.OrgStatus.PENDING_SETUP)
+            .maxUsers(20).maxActiveLoans(1000)
+            .minLoanAmount(20000.0).maxLoanAmount(10_000_000.0)
+            .subscribedAt(LocalDateTime.now()).trialEndsAt(LocalDateTime.now().plusDays(14))
+            .build());
+
+        // Admin account — from env vars, same pattern as BOOTSTRAP_ADMIN_*. Skips
+        // (doesn't fail startup) if unset, since this is a second org being added
+        // to an already-running platform, not the initial required bootstrap.
+        String email    = System.getenv("NOBLE_ADMIN_EMAIL");
+        String password = System.getenv("NOBLE_ADMIN_PASSWORD");
+        String name     = System.getenv("NOBLE_ADMIN_NAME");
+        if (email == null || email.isBlank() || password == null || password.isBlank()) {
+            log.info("NOBLE_ADMIN_EMAIL/NOBLE_ADMIN_PASSWORD not set — Noble Loan Solutions org created " +
+                "with no admin account yet. Set both and redeploy, or create the admin later via " +
+                "POST /api/super-admin/organizations/{}/admin.", noble.getId());
+            return;
+        }
+        String adminName = (name != null && !name.isBlank()) ? name : "Admin";
+        userRepo.save(makeUser(adminName, email, password, adminRole, noble));
+        accountingService.ensureChartOfAccounts(noble);
+
+        log.info("Noble Loan Solutions bootstrapped — admin login: {}", email);
     }
 
     private Role ensureRole(String name, String desc) {
