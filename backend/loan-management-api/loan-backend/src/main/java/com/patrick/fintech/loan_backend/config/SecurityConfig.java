@@ -21,7 +21,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -36,11 +35,13 @@ public class SecurityConfig {
     private final OrganizationRepository orgRepo;
 
     /**
-     * Example Render environment variable:
+     * Static frontend/admin origins.
      *
-     * CORS_ORIGINS=https://fintech01-aydw.vercel.app,http://localhost:3000
+     * IMPORTANT:
+     * Do not put a trailing "/" here.
      *
-     * Do NOT put a trailing slash on origins.
+     * Example:
+     * https://fintech01-aydw.vercel.app
      */
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
     private String allowedOrigins;
@@ -74,38 +75,27 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
 
-                /*
-                 * Public endpoints
-                 */
                 .requestMatchers(
                     "/api/auth/**",
-                    "/api/public/**",
-                    "/actuator/health",
+                    "/h2-console/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
                     "/api-docs/**",
-                    "/h2-console/**"
-                ).permitAll()
+                    "/actuator/health",
+                    "/api/public/**"
+                )
+                .permitAll()
 
-                /*
-                 * Everything else requires authentication.
-                 */
-                .anyRequest().authenticated()
+                .anyRequest()
+                .authenticated()
             )
 
             .headers(headers ->
-                headers.frameOptions(frame ->
-                    frame.sameOrigin()
-                )
+                headers.frameOptions(frame -> frame.sameOrigin())
             )
 
             /*
-             * Tenant resolution happens before authentication.
-             *
-             * This allows anonymous public website requests such as:
-             *
-             * growthfinance.rw/api/public/...
-             * abcsacco.rw/api/public/...
+             * Resolve organization from Host/X-Tenant-Domain.
              */
             .addFilterBefore(
                 tenantResolutionFilter,
@@ -134,27 +124,15 @@ public class SecurityConfig {
     /**
      * CORS configuration.
      *
-     * There are two types of allowed origins:
+     * Supports:
      *
-     * 1. Static application origins
-     *    - Vercel frontend
-     *    - localhost development
-     *
-     * 2. Verified customer domains
-     *    - growthfinance.rw
-     *    - abcsacco.rw
-     *    - etc.
+     * 1. Main LoanSaaS frontend
+     * 2. Vercel frontend
+     * 3. Local development
+     * 4. Verified customer domains
      */
     @Bean
     public CorsConfigurationSource corsSource() {
-
-        final List<String> staticOrigins = Arrays.stream(
-                allowedOrigins.split(",")
-            )
-            .map(String::trim)
-            .filter(origin -> !origin.isBlank())
-            .map(this::removeTrailingSlash)
-            .toList();
 
         return request -> {
 
@@ -171,76 +149,74 @@ public class SecurityConfig {
 
             config.setAllowedHeaders(List.of("*"));
 
-            config.setAllowCredentials(true);
+            config.setExposedHeaders(List.of(
+                "Authorization",
+                "Content-Type"
+            ));
 
-            config.setMaxAge(3600L);
+            config.setAllowCredentials(true);
 
             String origin = request.getHeader("Origin");
 
-            /*
-             * No Origin means this is probably:
-             *
-             * - curl
-             * - Postman
-             * - server-to-server request
-             * - browser navigation
-             *
-             * Don't apply browser CORS restrictions.
-             */
             if (origin == null || origin.isBlank()) {
                 return config;
             }
 
-            origin = removeTrailingSlash(origin);
+            if (isAllowedStaticOrigin(origin) ||
+                isVerifiedOrganizationOrigin(origin)) {
 
-            /*
-             * 1. Main Vercel application / local development.
-             */
-            if (staticOrigins.contains(origin)) {
-
-                config.setAllowedOrigins(
-                    List.of(origin)
-                );
-
-                return config;
-            }
-
-            /*
-             * 2. Customer's own domain.
-             *
-             * Example:
-             *
-             * Origin:
-             * https://growthfinance.rw
-             *
-             * Database:
-             * growthfinance.rw
-             *
-             * Domain must be verified before being accepted.
-             */
-            if (matchesVerifiedOrganization(origin)) {
-
-                config.setAllowedOrigins(
-                    List.of(origin)
-                );
+                /*
+                 * IMPORTANT:
+                 * Return the exact Origin.
+                 *
+                 * Never return "*"
+                 * when credentials are enabled.
+                 */
+                config.setAllowedOrigins(List.of(origin));
 
                 return config;
             }
 
             /*
-             * Unknown origin.
+             * Unknown browser origin.
              *
-             * Don't return an allowed origin.
+             * Returning an empty configuration prevents CORS headers
+             * from being added.
              */
-            return config;
+            return new CorsConfiguration();
         };
     }
 
     /**
-     * Checks whether the browser origin belongs to a verified
-     * customer organization.
+     * Check the static origins configured through:
+     *
+     * CORS_ORIGINS
      */
-    private boolean matchesVerifiedOrganization(String origin) {
+    private boolean isAllowedStaticOrigin(String origin) {
+
+        if (allowedOrigins == null || allowedOrigins.isBlank()) {
+            return false;
+        }
+
+        String normalizedOrigin = normalizeOrigin(origin);
+
+        for (String configured : allowedOrigins.split(",")) {
+
+            String normalizedConfigured =
+                normalizeOrigin(configured);
+
+            if (normalizedOrigin.equalsIgnoreCase(normalizedConfigured)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check whether Origin belongs to a verified customer organization.
+     */
+    private boolean isVerifiedOrganizationOrigin(String origin) {
 
         try {
 
@@ -252,7 +228,7 @@ public class SecurityConfig {
                 return false;
             }
 
-            host = host.toLowerCase().trim();
+            host = host.toLowerCase();
 
             if (host.startsWith("www.")) {
                 host = host.substring(4);
@@ -269,27 +245,61 @@ public class SecurityConfig {
     }
 
     /**
-     * Removes a trailing slash.
+     * Converts:
      *
-     * https://fintech01-aydw.vercel.app/
+     * https://www.example.com/
      *
-     * becomes:
+     * into:
      *
-     * https://fintech01-aydw.vercel.app
+     * https://example.com
      */
-    private String removeTrailingSlash(String value) {
+    private String normalizeOrigin(String origin) {
 
-        if (value == null) {
-            return null;
+        if (origin == null) {
+            return "";
         }
 
-        value = value.trim();
+        String value = origin.trim();
 
         while (value.endsWith("/")) {
             value = value.substring(0, value.length() - 1);
         }
 
-        return value;
+        try {
+
+            URI uri = URI.create(value);
+
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+
+            if (scheme == null || host == null) {
+                return value.toLowerCase();
+            }
+
+            host = host.toLowerCase();
+
+            if (host.startsWith("www.")) {
+                host = host.substring(4);
+            }
+
+            int port = uri.getPort();
+
+            if (port > 0) {
+                return scheme.toLowerCase()
+                    + "://"
+                    + host
+                    + ":"
+                    + port;
+            }
+
+            return scheme.toLowerCase()
+                + "://"
+                + host;
+
+        } catch (Exception e) {
+
+            return value.toLowerCase();
+        }
     }
 
     @Bean
