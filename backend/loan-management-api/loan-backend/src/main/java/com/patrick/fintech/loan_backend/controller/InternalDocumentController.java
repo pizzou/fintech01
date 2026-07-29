@@ -35,7 +35,6 @@ public class InternalDocumentController {
     }
 
     @PostMapping
-    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<ApiResponse<InternalDocument>> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "title", required = false) String title,
@@ -45,6 +44,18 @@ public class InternalDocumentController {
         InternalDocument saved = docService.upload(user.getOrganization(), user, file, title, category, description);
         // Never serialize the file bytes back in the upload response — the frontend already
         // has the file locally and only needs the saved metadata (id, name, etc.) to update its list.
+        //
+        // IMPORTANT: this method used to be @Transactional, which kept `saved` attached to
+        // Hibernate for the whole request. Setting a managed entity's field to null (as below)
+        // isn't a harmless in-memory tweak in that case — Hibernate's dirty-checking queues an
+        // UPDATE for it, which fired at commit time right after this method returned and tried
+        // to write NULL into the NOT NULL `data` column, failing with a constraint violation
+        // that surfaced to the user as "This action was already completed or conflicts with an
+        // existing record." The document had already saved successfully; only the response step
+        // was broken. Removing @Transactional here lets docService.upload()'s own save() commit
+        // and detach `saved` on its own (the repository save is transactional by itself), so this
+        // mutation is now what it looks like: a plain, un-persisted in-memory change before we
+        // serialize the response — the same safe pattern BorrowerFileService already uses.
         saved.setData(null);
         return ResponseEntity.ok(ApiResponse.ok("Document uploaded", saved));
     }

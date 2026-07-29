@@ -46,68 +46,76 @@ public class ESignatureService {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
 
-    @Transactional
-    public ESignatureRequest initiate(Long loanId, String documentType, String initiatedBy) {
-        Loan loan = loanRepo.findById(loanId).orElseThrow(() -> new RuntimeException("Loan not found: " + loanId));
-        Borrower borrower = loan.getBorrower();
-        if (borrower == null) throw new RuntimeException("Loan has no borrower on file");
-        if (borrower.getPhone() == null || borrower.getPhone().isBlank())
-            throw new RuntimeException("Borrower has no phone number on file to receive the signing OTP");
+    // backend/loan-management-api/loan-backend/src/main/java/com/patrick/fintech/loan_backend/service/ESignatureService.java
 
-        String token = UUID.randomUUID().toString().replace("-", "");
-        String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
-        String docText = renderAgreement(loan, borrower);
-        String signLink = frontendUrl + "/sign/" + token;
+@Transactional
+public ESignatureRequest initiate(Long loanId, String documentType, String initiatedBy) {
+    Loan loan = loanRepo.findById(loanId).orElseThrow(() -> new RuntimeException("Loan not found: " + loanId));
+    Borrower borrower = loan.getBorrower();
+    if (borrower == null) throw new RuntimeException("Loan has no borrower on file");
+    boolean hasPhone = borrower.getPhone() != null && !borrower.getPhone().isBlank();
+    boolean hasEmail = borrower.getEmail() != null && !borrower.getEmail().isBlank();
+    if (!hasPhone && !hasEmail)
+        throw new RuntimeException("Borrower has no phone number or email on file to receive the signing OTP");
 
-        ESignatureRequest req = ESignatureRequest.builder()
-            .loan(loan).borrower(borrower).organization(loan.getOrganization())
-            .signingToken(token)
-            .documentType(documentType != null ? documentType : "LOAN_AGREEMENT")
-            .status(ESignatureRequest.SignatureStatus.OTP_SENT)
-            .otpCodeHash(sha256(otp))
-            .otpAttempts(0)
-            .otpSentAt(LocalDateTime.now())
-            .documentSnapshot(docText)
-            .documentHash(sha256(docText))
-            .consentText("By entering the code below and typing your full legal name, you agree this " +
-                "constitutes your electronic signature on the loan agreement above, legally binding as " +
-                "if signed by hand, in accordance with applicable electronic transactions law.")
-            .createdBy(initiatedBy)
-            .sentAt(LocalDateTime.now())
-            .build();
-        req = esignRepo.save(req);
+    String token = UUID.randomUUID().toString().replace("-", "");
+    String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
+    String docText = renderAgreement(loan, borrower);
+    String signLink = frontendUrl + "/sign/" + token;
 
+    ESignatureRequest req = ESignatureRequest.builder()
+        .loan(loan).borrower(borrower).organization(loan.getOrganization())
+        .signingToken(token)
+        .documentType(documentType != null ? documentType : "LOAN_AGREEMENT")
+        .status(ESignatureRequest.SignatureStatus.OTP_SENT)
+        .otpCodeHash(sha256(otp))
+        .otpAttempts(0)
+        .otpSentAt(LocalDateTime.now())
+        .documentSnapshot(docText)
+        .documentHash(sha256(docText))
+        .consentText("By entering the code below and typing your full legal name, you agree this " +
+            "constitutes your electronic signature on the loan agreement above, legally binding as " +
+            "if signed by hand, in accordance with applicable electronic transactions law.")
+        .createdBy(initiatedBy)
+        .sentAt(LocalDateTime.now())
+        .build();
+    req = esignRepo.save(req);
+
+    if (hasPhone) {
         smsService.sendCustom(borrower.getPhone(),
             String.format("%s: Sign your loan agreement here: %s Verification code: %s (valid 7 days). " +
                 "Reply to your loan officer if you did not request this.", orgName(loan), signLink, otp));
-
-        if (borrower.getEmail() != null && !borrower.getEmail().isBlank()) {
-            mailService.sendESignatureRequest(borrower, orgName(loan), signLink);
-        }
-
-        auditService.log(loan.getOrganization(), null, "ESIGNATURE_INITIATED", "LOAN",
-            String.valueOf(loanId), "E-signature request created for " + req.getDocumentType() + " by " + initiatedBy
-                + (borrower.getEmail() != null && !borrower.getEmail().isBlank() ? " (link emailed + OTP texted)" : " (OTP texted, no email on file)"));
-
-        return req;
     }
 
-    @Transactional
-    public ESignatureRequest resendOtp(String token) {
-        ESignatureRequest req = getActiveByToken(token);
-        String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
-        String signLink = frontendUrl + "/sign/" + token;
-        req.setOtpCodeHash(sha256(otp));
-        req.setOtpSentAt(LocalDateTime.now());
-        req.setOtpAttempts(0);
-        esignRepo.save(req);
+    if (hasEmail) {
+        mailService.sendESignatureRequest(borrower, orgName(loan), signLink, otp);
+    }
+
+    auditService.log(loan.getOrganization(), null, "ESIGNATURE_INITIATED", "LOAN",
+        String.valueOf(loanId), "E-signature request created for " + req.getDocumentType() + " by " + initiatedBy
+            + (hasEmail && hasPhone ? " (link emailed + OTP texted)" : hasEmail ? " (OTP emailed, no phone on file)" : " (OTP texted, no email on file)"));
+
+    return req;
+}
+
+@Transactional
+public ESignatureRequest resendOtp(String token) {
+    ESignatureRequest req = getActiveByToken(token);
+    String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
+    String signLink = frontendUrl + "/sign/" + token;
+    req.setOtpCodeHash(sha256(otp));
+    req.setOtpSentAt(LocalDateTime.now());
+    req.setOtpAttempts(0);
+    esignRepo.save(req);
+    if (req.getBorrower().getPhone() != null && !req.getBorrower().getPhone().isBlank()) {
         smsService.sendCustom(req.getBorrower().getPhone(),
             String.format("%s: Sign here: %s New verification code: %s.", orgName(req.getLoan()), signLink, otp));
-        if (req.getBorrower().getEmail() != null && !req.getBorrower().getEmail().isBlank()) {
-            mailService.sendESignatureRequest(req.getBorrower(), orgName(req.getLoan()), signLink);
-        }
-        return req;
     }
+    if (req.getBorrower().getEmail() != null && !req.getBorrower().getEmail().isBlank()) {
+        mailService.sendESignatureRequest(req.getBorrower(), orgName(req.getLoan()), signLink, otp);
+    }
+    return req;
+}
 
     @Transactional
     public ESignatureRequest verifyAndSign(String token, String otp, String typedFullName,

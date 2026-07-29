@@ -245,6 +245,28 @@ public class MailService {
         );
     }
 
+    // backend/loan-management-api/loan-backend/src/main/java/com/patrick/fintech/loan_backend/service/MailService.java
+
+/** Sent alongside SMS when available, and as the primary channel when the borrower has
+ *  no phone on file — the email carries both the clickable signing link and the OTP
+ *  itself, so signing still works on deployments where the SMS gateway isn't configured. */
+@Async
+public void sendESignatureRequest(Borrower borrower, String orgName, String signLink, String otp) {
+    if (!mailEnabled) {
+        log.info("[EMAIL] E-signature link for {}: {} (OTP {})", borrower.getEmail(), signLink, otp);
+        return;
+    }
+    if (borrower.getEmail() == null || borrower.getEmail().isBlank()) return;
+    send(borrower.getEmail(), "Your Loan Agreement Is Ready to Sign",
+        "<h2>Loan Agreement Ready for Signature</h2>" +
+        "<p>Dear " + borrower.getFullName() + ",</p>" +
+        "<p>" + orgName + " has sent your loan agreement for e-signature. Click below to review and sign it.</p>" +
+        "<p><a href=\"" + signLink + "\" style=\"background:#0D9488;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;\">Review &amp; Sign</a></p>" +
+        "<p>Enter this verification code on that page to complete your signature (also sent by SMS, if we have a valid number on file):</p>" +
+        "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;color:#0D6B3E;\">" + otp + "</p>" +
+        "<p>This link expires in 7 days. If you weren't expecting this, please contact your loan officer.</p>");
+}
+
     @Async
     public void sendDocumentVerified(Borrower borrower, String documentType) {
         if (!mailEnabled) {

@@ -50,6 +50,17 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    /** Dedicated path for role changes. This must NOT go through update(id, user) above —
+     *  that method only ever copies the `name` field onto a freshly-refetched entity, so a
+     *  role set on the caller's in-memory User object (as UserController.changeRole used to
+     *  do before calling update()) was silently discarded: the endpoint returned success, but
+     *  the role in the database never changed. */
+    public User changeRole(Long id, Role role) {
+        User user = getById(id);
+        user.setRole(role);
+        return userRepository.save(user);
+    }
+
     /** Changes a user's email after checking no one else already has it. Used both for admins
      *  editing another user and for self-service (where the controller additionally verifies
      *  the caller's current password before calling this). */
@@ -94,5 +105,27 @@ public class UserService {
         return rawPassword != null && passwordEncoder.matches(rawPassword, user.getPassword());
     }
 
-    public void delete(Long id) { userRepository.deleteById(id); }
+    /** "Delete" a staff account. This does NOT remove the row — every loan, audit log entry,
+     *  document upload, and approval this user ever touched has a foreign key pointing at
+     *  users.id with no cascade rule, so a real DELETE always failed with a constraint
+     *  violation the moment the target had any history at all (which is to say, always, for
+     *  any account actually used day to day). It surfaced to the admin as a generic
+     *  "conflicts with an existing record" error.
+     *
+     *  Separately, hard-deleting a user referenced by the append-only audit hash chain would
+     *  be the wrong move even if it didn't crash — it'd leave audit entries pointing at a
+     *  user that no longer exists, undermining the tamper-evident trail this platform relies
+     *  on for compliance. Deactivating (blocks login, hidden from active staff lists, history
+     *  intact) is the correct operation here, not a workaround. */
+    public User deactivate(Long id) {
+        User user = getById(id);
+        user.setStatus(User.UserStatus.SUSPENDED);
+        return userRepository.save(user);
+    }
+
+    public User reactivate(Long id) {
+        User user = getById(id);
+        user.setStatus(User.UserStatus.ACTIVE);
+        return userRepository.save(user);
+    }
 }

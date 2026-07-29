@@ -119,8 +119,11 @@ public class UserController {
         var role = roleRepository.findByName(roleName)
             .orElseThrow(() -> new RuntimeException("Unknown role: " + roleName));
         String previousRole = user.getRole() != null ? user.getRole().getName() : null;
-        user.setRole(role);
-        User updated = userService.update(id, user);
+        // Was: user.setRole(role); userService.update(id, user) — update() only ever copies
+        // the `name` field onto a fresh re-fetch of the user, so the role set here was
+        // silently discarded every time. This endpoint returned "success" but never actually
+        // changed anyone's role. changeRole() below is the real fix.
+        User updated = userService.changeRole(id, role);
         auditService.log(updated.getOrganization(), currentUserUtil.getCurrentUser(), "USER_ROLE_CHANGED", "USER",
             String.valueOf(updated.getId()), "Changed role of " + updated.getName() + " to " + roleName,
             previousRole, roleName, "User Management");
@@ -132,12 +135,38 @@ public class UserController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         if (id.equals(currentUserUtil.getCurrentUserId()))
             throw new RuntimeException("Cannot delete your own account");
+        Long orgId = currentUserUtil.getCurrentOrganizationId();
         User target = userService.getById(id);
-        userService.delete(id);
-        auditService.log(target.getOrganization(), currentUserUtil.getCurrentUser(), "USER_DELETED", "USER",
-            String.valueOf(id), "Deleted user " + target.getName() + " (" + target.getEmail() + ")",
+        // Previously missing entirely — an admin could deactivate/delete a user in a
+        // *different* organization just by guessing an id, the same cross-org gap that
+        // existed on PUT /{id} before it was fixed.
+        if (!target.getOrganization().getId().equals(orgId)) throw new RuntimeException("Access denied");
+        // Was a hard userService.delete(id) -> userRepository.deleteById(id). Every user this
+        // platform's ever used has rows elsewhere (loans, audit logs, uploads, approvals...)
+        // pointing at them by foreign key with no cascade rule, so that delete always failed
+        // with a database constraint violation — surfaced to the admin as a generic "conflicts
+        // with an existing record" error. Deactivating instead blocks their login and removes
+        // them from active use without breaking referential integrity or the audit trail.
+        userService.deactivate(id);
+        auditService.log(target.getOrganization(), currentUserUtil.getCurrentUser(), "USER_DEACTIVATED", "USER",
+            String.valueOf(id), "Deactivated user " + target.getName() + " (" + target.getEmail() + ")",
             null, null, "User Management");
-        return ResponseEntity.ok(ApiResponse.ok("User deleted"));
+        return ResponseEntity.ok(ApiResponse.ok("User deactivated — their login is disabled and their history is preserved"));
+    }
+
+    /** Undoes delete()/deactivate() above — an admin's only way to walk back a deactivation
+     *  short of editing the database directly. */
+    @PutMapping("/{id}/reactivate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String,Object>>> reactivate(@PathVariable Long id) {
+        Long orgId = currentUserUtil.getCurrentOrganizationId();
+        User target = userService.getById(id);
+        if (!target.getOrganization().getId().equals(orgId)) throw new RuntimeException("Access denied");
+        User updated = userService.reactivate(id);
+        auditService.log(updated.getOrganization(), currentUserUtil.getCurrentUser(), "USER_REACTIVATED", "USER",
+            String.valueOf(id), "Reactivated user " + updated.getName() + " (" + updated.getEmail() + ")",
+            null, null, "User Management");
+        return ResponseEntity.ok(ApiResponse.ok("User reactivated", safeUser(updated)));
     }
 
     private Map<String,Object> safeUser(User u) {
@@ -151,6 +180,7 @@ public class UserController {
         m.put("organization", u.getOrganization() != null
             ? Map.of("id", u.getOrganization().getId(), "name", u.getOrganization().getName()) : null);
         m.put("mustChangePassword", u.isMustChangePassword());
+        m.put("status", u.getStatus() != null ? u.getStatus().name() : "ACTIVE");
         return m;
     }
 }
