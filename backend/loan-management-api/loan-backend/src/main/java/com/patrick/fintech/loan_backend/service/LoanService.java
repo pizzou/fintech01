@@ -311,6 +311,21 @@ if (loan.getStatus() == LoanStatus.OVERDUE) {
         return saved;
     }
 
+    public Loan approveLoan(Long loanId, User approvedBy, String notes) {
+        return approveLoan(loanId, approvedBy, notes, null);
+    }
+
+    /**
+     * @param newInterestRate optional — lets the approving officer adjust the rate from
+     *                        whatever was set at application time (e.g. the public site's
+     *                        default 10%/month) to a rate the officer judges more appropriate
+     *                        for this borrower. Recalculates totalRepayable using the same
+     *                        rateType (MONTHLY/ANNUAL) the loan already has, before the
+     *                        actual installment-by-installment schedule is generated below
+     *                        (generateRepaymentSchedule reads loan.getInterestRate() fresh,
+     *                        so this change flows through automatically). Null keeps the
+     *                        rate exactly as it was set at application time.
+     */
     @Transactional
     public Loan approveLoan(Long loanId, User approvedBy, String notes, Double newInterestRate) {
         Loan loan = getLoanForOrg(loanId, approvedBy.getOrganization().getId());
@@ -340,6 +355,16 @@ if (!missingDocs.isEmpty()) {
         + ". Upload these documents first, or override the product's document requirements if they genuinely don't apply."
     );
 }
+        String previousRate = loan.getInterestRate() != null ? loan.getInterestRate() + "%" : "unset";
+        if (newInterestRate != null && !newInterestRate.equals(loan.getInterestRate())) {
+            double principal = loan.getAmount() != null ? loan.getAmount() : 0;
+            int months = loan.getDurationMonths() != null ? loan.getDurationMonths() : 1;
+            String rateType = loan.getInterestRateType() != null ? loan.getInterestRateType() : "ANNUAL";
+            double[] calc = calcLoan(principal, newInterestRate, months, rateType);
+            loan.setInterestRate(newInterestRate);
+            loan.setTotalRepayable(round(calc[1]));
+        }
+
         loan.setStatus(LoanStatus.APPROVED);
         loan.setApprovedBy(approvedBy);
         loan.setApprovedAt(LocalDate.now());
@@ -356,7 +381,8 @@ if (!missingDocs.isEmpty()) {
             log.warn("Repayment schedule already exists for loan {}, skipping regeneration", saved.getId());
         }
         audit(loan.getOrganization(), approvedBy, "LOAN_APPROVED", "LOAN",
-              loanId.toString(), "Loan " + loan.getReferenceNumber() + " approved");
+              loanId.toString(), "Loan " + loan.getReferenceNumber() + " approved"
+                  + (newInterestRate != null ? " — rate changed from " + previousRate + " to " + newInterestRate + "%" : ""));
         try { mailService.sendLoanApproved(saved); } catch (Exception e) { log.warn("Notif failed", e); }
         try { smsService.sendLoanApproved(saved); } catch (Exception e) { log.warn("SMS failed", e); }
         notifyOfficer(saved, approvedBy, "Loan Approved",

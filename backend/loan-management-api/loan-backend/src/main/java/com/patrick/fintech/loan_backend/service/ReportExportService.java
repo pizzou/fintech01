@@ -108,7 +108,7 @@ public class ReportExportService {
             for (Map<String, Object> rowData : rows) {
                 for (String col : columns) {
                     Object v = rowData.get(col);
-                    PdfPCell cell = new PdfPCell(new Phrase(v != null ? v.toString() : "", bodyFont));
+                    PdfPCell cell = new PdfPCell(new Phrase(formatCell(v), bodyFont));
                     cell.setPadding(5);
                     table.addCell(cell);
                 }
@@ -120,5 +120,22 @@ public class ReportExportService {
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate PDF export: " + e.getMessage(), e);
         }
+    }
+
+    // Money and other decimal figures come in as raw doubles, which print with
+    // full floating-point precision (e.g. 818987.40397372...) if left to
+    // Object.toString() — unreadable, and prone to ugly mid-number line wraps
+    // in a narrow PDF cell. Whole numbers (counts, installment numbers) are
+    // left as-is; only fractional values get comma + 2-decimal formatting.
+    private String formatCell(Object v) {
+        if (v == null) return "";
+        if (v instanceof Double || v instanceof Float) {
+            double d = ((Number) v).doubleValue();
+            return new java.text.DecimalFormat("#,##0.00").format(d);
+        }
+        if (v instanceof Integer || v instanceof Long) {
+            return new java.text.DecimalFormat("#,##0").format(((Number) v).longValue());
+        }
+        return v.toString();
     }
 }

@@ -48,7 +48,7 @@ public class PublicController {
     private final com.patrick.fintech.loan_backend.repository.ContactMessageRepository contactMessageRepo;
     private final FlutterwaveService     flutterwaveService;
     private final PaymentService         paymentService;
-    private final PaymentScheduleRepository paymentScheduleRepo;
+    private final PaymentRepository      paymentRepo;
     private final ReportExportService    exportService;
 
     /**
@@ -65,12 +65,8 @@ public class PublicController {
         String subject = str(body.get("subject"));
         String message = str(body.get("message"));
         String email    = str(body.get("email"));
-        String phone = str(body.get("phone"));
-        if (phone == null || phone.isBlank()) throw new RuntimeException("Phone number is required");
-        if (!phone.trim().matches("\\+\\d{10,15}")) {
-            throw new RuntimeException("Phone number must include a country code and contain digits only (e.g. +2507XXXXXXXX)");
-        }
-        String firstName = str(body.get("firstName"));
+        String phone    = str(body.get("phone"));
+        if (name == null || message == null) throw new RuntimeException("Name and message are required");
 
         contactMessageRepo.save(ContactMessage.builder()
             .organization(org).name(name).email(email).phone(phone).subject(subject).message(message).build());
@@ -370,16 +366,22 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
     @GetMapping("/applications/{reference}/documents/schedule.pdf")
     public ResponseEntity<byte[]> downloadSchedule(@PathVariable String reference, @RequestParam String phone) {
         Loan loan = verifyOwnership(reference, phone);
-        List<String> columns = List.of("#", "Due Date", "Principal", "Interest", "Total", "Status");
-        List<Map<String,Object>> rows = paymentScheduleRepo.findByLoanIdOrderByInstallmentNumberAsc(loan.getId()).stream()
-            .map(s -> {
+        List<String> columns = List.of("#", "Due Date", "Principal", "Interest", "Total", "Balance", "Status");
+        // Sourced from the live payment ledger (the same table PaymentService.recordPayment()
+        // updates on every real payment) — not the one-time schedule generated at
+        // disbursement, which never changes once the borrower starts paying flexible
+        // amounts and would otherwise show a schedule that no longer matches reality.
+        List<Map<String,Object>> rows = paymentRepo.findByLoanId(loan.getId()).stream()
+            .sorted(java.util.Comparator.comparing(Payment::getInstallmentNumber))
+            .map(p -> {
                 Map<String,Object> m = new LinkedHashMap<>();
-                m.put("#", s.getInstallmentNumber());
-                m.put("Due Date", s.getDueDate());
-                m.put("Principal", s.getPrincipalAmount());
-                m.put("Interest", s.getInterestAmount());
-                m.put("Total", s.getInstallmentAmount());
-                m.put("Status", s.getStatus());
+                m.put("#", p.getInstallmentNumber());
+                m.put("Due Date", p.getDueDate());
+                m.put("Principal", p.getPrincipalComponent());
+                m.put("Interest", p.getInterestComponent());
+                m.put("Total", p.getAmount() != null ? p.getAmount() : p.getAmountPaid());
+                m.put("Balance", p.getOutstandingAfter());
+                m.put("Status", p.getStatus());
                 return m;
             }).toList();
         byte[] pdf = exportService.toPdf("Repayment Schedule", columns, rows, loan.getOrganization().getName());
