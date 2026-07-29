@@ -1,4 +1,5 @@
 'use client';
+import type { ReactNode } from 'react';
 import { LoanStatus, RiskCategory } from '@/types';
 import { STATUS_COLORS, RISK_COLORS } from '@/lib/utils';
 
@@ -20,7 +21,7 @@ export function RiskBadge({ category, score }: { category: RiskCategory; score?:
   );
 }
 
-export function Pill({ label, color = 'gray' }: { label: string; color?: string }) {
+export function Pill({ label, color = 'gray' }: { label: ReactNode; color?: string }) {
   const colors: Record<string, string> = {
     gray:   'bg-gray-100 text-gray-700',
     blue:   'bg-blue-100 text-blue-700',

@@ -3,10 +3,14 @@ import { useEffect, useState } from 'react';
 import { getAllPayments, getOverduePayments } from '../../../services/paymentService';
 import { Payment } from '../../../types/index';
 import { PageSpinner } from '../../../components/ui/Skeleton';
+import { formatCurrency } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 type F = 'all' | 'paid' | 'pending' | 'overdue';
 
 export default function PaymentsPage() {
+  const { currency, locale } = useAuth();
+  const fc = (n?: number) => formatCurrency(n, currency, locale);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [filter,   setFilter]   = useState<F>('all');
@@ -34,11 +38,11 @@ export default function PaymentsPage() {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="text-gray-500 text-xs uppercase tracking-wide">Collected</p>
-          <p className="text-2xl font-bold text-green-600 mt-1">${collected.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-green-600 mt-1">{fc(collected)}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="text-gray-500 text-xs uppercase tracking-wide">Outstanding</p>
-          <p className="text-2xl font-bold text-yellow-600 mt-1">${outstanding.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-yellow-600 mt-1">{fc(outstanding)}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="text-gray-500 text-xs uppercase tracking-wide">Overdue</p>
@@ -72,9 +76,9 @@ export default function PaymentsPage() {
                 return (
                   <tr key={p.id} style={isOverdue ? { background: '#fff5f5' } : {}}>
                     <td className="px-5 py-3 text-gray-500">{p.installmentNumber ?? p.id}</td>
-                    <td className="px-5 py-3 font-medium">${p.amount?.toLocaleString()}</td>
+                    <td className="px-5 py-3 font-medium">{fc(p.amount)}</td>
                     <td className={`px-5 py-3 ${(p.penalty ?? 0) > 0 ? 'text-orange-600 font-medium' : 'text-gray-300'}`}>
-                      {(p.penalty ?? 0) > 0 ? `$${p.penalty}` : '—'}
+                      {(p.penalty ?? 0) > 0 ? fc(p.penalty) : '—'}
                     </td>
                     <td className={`px-5 py-3 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>{p.dueDate}</td>
                     <td className="px-5 py-3 text-gray-500">{p.paidDate ?? '—'}</td>

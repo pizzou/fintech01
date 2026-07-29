@@ -10,6 +10,21 @@ import { Table, Thead, Th, Tbody, Tr, Td } from '@/components/ui/Table';
 import { Modal } from '@/components/ui/Modal';
 import { FormGroup, Input, Select, Textarea, Alert } from '@/components/ui/Form';
 import { formatCurrency, formatDate, formatNumber, LOAN_TYPE_META } from '@/lib/utils';
+import {
+  IconBank,
+  IconSignature,
+  IconCard,
+  IconCoins,
+  IconSend,
+  IconCheckCircle,
+  IconClock,
+  IconFileText,
+  IconAlertTriangle,
+  IconFileEdit,
+  IconSearch,
+  IconCalendar,
+  IconFlag
+} from '@/components/ui/Icons';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { queueAction, cacheGet, cacheSet } from '@/lib/offlineDb';
@@ -201,24 +216,24 @@ export default function LoanDetailPage() {
             <Pill label={`${LOAN_TYPE_META[loan.loanType]?.icon} ${LOAN_TYPE_META[loan.loanType]?.label ?? loan.loanType}`} color="blue" />
             <Pill label={loan.currency} color="teal" />
             {loan.daysOverdue && loan.daysOverdue > 0
-              ? <Pill label={`⚠️ ${loan.daysOverdue}d overdue`} color="red" /> : null}
+              ? <Pill label={<span className="inline-flex items-center gap-1"><IconAlertTriangle className="w-3 h-3" />{loan.daysOverdue}d overdue</span>} color="red" /> : null}
           </div>
         </div>
         <div className="flex gap-2">
           {isOfficer && loan.borrower && (
             <Button variant="outline" onClick={handleCreditBureauCheck} disabled={cbBusy}>
-              {cbBusy ? 'Checking…' : '🏦 Credit Bureau Check'}
+              <IconBank className="w-4 h-4" /> {cbBusy ? 'Checking…' : 'Credit Bureau Check'}
             </Button>
           )}
           {isOfficer && (loan.status === 'APPROVED' || loan.status === 'DISBURSED' || loan.status === 'ACTIVE') && (
             <Button variant="outline" onClick={handleSendForSignature} disabled={esignBusy}>
-              {esignBusy ? 'Sending…' : '✍️ Send for E-Signature'}
+              <IconSignature className="w-4 h-4" /> {esignBusy ? 'Sending…' : 'Send for E-Signature'}
             </Button>
           )}
           {isOfficer && <Button variant="outline" onClick={() => setStOpen(true)}>Update Status</Button>}
           {loan.status === 'ACTIVE' && (
             <Button onClick={() => { setPayForm(f => ({ ...f, amount: String(loan.totalRepayable ? Math.round((loan.totalRepayable / loan.durationMonths!) * 100) / 100 : '') })); setPayOpen(true); }}>
-              💳 Record Payment
+              <IconCard className="w-4 h-4" /> Record Payment
             </Button>
           )}
         </div>
@@ -229,14 +244,14 @@ export default function LoanDetailPage() {
       {/* Hero KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         {[
-          ['Principal',   fc(loan.amount),              '💰', '#3B82F6'],
-          ['Disbursed',   fc(loan.disbursedAmount),     '💸', '#8B5CF6'],
-          ['Total Paid',  fc(loan.totalPaid),           '✅', '#0D9488'],
-          ['Outstanding', fc(loan.outstandingBalance),  '⏳', '#F59E0B'],
-         ['Penalty', fc(totalPenalty), '📋', '#6B7280'],
-        ].map(([label, value, icon, color]) => (
-          <div key={label as string} className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="text-lg mb-1">{icon}</div>
+          { label: 'Principal',   value: fc(loan.amount),              Icon: IconCoins,       color: '#3B82F6' },
+          { label: 'Disbursed',   value: fc(loan.disbursedAmount),     Icon: IconSend,        color: '#8B5CF6' },
+          { label: 'Total Paid',  value: fc(loan.totalPaid),           Icon: IconCheckCircle, color: '#0D9488' },
+          { label: 'Outstanding', value: fc(loan.outstandingBalance),  Icon: IconClock,       color: '#F59E0B' },
+          { label: 'Penalty',     value: fc(totalPenalty),             Icon: IconFileText,    color: '#6B7280' },
+        ].map(({ label, value, Icon, color }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
+            <Icon className="w-5 h-5 mb-1.5" style={{ color }} />
             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</div>
             <div className="text-lg font-extrabold text-gray-900 font-mono mt-0.5">{value}</div>
           </div>
@@ -260,8 +275,8 @@ export default function LoanDetailPage() {
             <span>{fc(loan.totalRepayable)} total</span>
           </div>
           {loan.status === 'PAID' && (
-            <div className="mt-2 bg-teal-50 border border-teal-200 text-teal-700 text-xs rounded-lg px-3 py-2">
-              ✅ Loan fully repaid!
+            <div className="mt-2 bg-teal-50 border border-teal-200 text-teal-700 text-xs rounded-lg px-3 py-2 flex items-center gap-1.5">
+              <IconCheckCircle className="w-4 h-4" /> Loan fully repaid
             </div>
           )}
         </CardBody>
@@ -271,7 +286,7 @@ export default function LoanDetailPage() {
           server enforces in approveLoan/disburseLoan, instead of only finding out on click. */}
       {docReq && (docReq.missing.length > 0 || docReq.unverified.length > 0) && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5 text-sm">
-          <div className="font-bold text-amber-800 mb-1">⚠️ Required documents not yet in order</div>
+          <div className="font-bold text-amber-800 mb-1 flex items-center gap-1.5"><IconAlertTriangle className="w-4 h-4" /> Required documents not yet in order</div>
           {docReq.missing.length > 0 && (
             <div className="text-amber-700">
               Not uploaded (blocks <strong>Approve</strong>): {docReq.missing.map(t => DOCUMENT_TYPE_LABELS[t] ?? t).join(', ')}
@@ -333,7 +348,7 @@ export default function LoanDetailPage() {
             <hr className="my-4 border-gray-100" />
             <div className="flex gap-3 flex-wrap text-xs text-gray-500">
               {loan.loanOfficer && <span className="bg-gray-100 px-3 py-1.5 rounded-lg">👤 Officer: <strong>{loan.loanOfficer.name}</strong></span>}
-              {loan.approvedBy  && <span className="bg-gray-100 px-3 py-1.5 rounded-lg">✅ Approved by: <strong>{loan.approvedBy.name}</strong></span>}
+              {loan.approvedBy  && <span className="bg-gray-100 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><IconCheckCircle className="w-3.5 h-3.5 text-teal-600" /> Approved by: <strong>{loan.approvedBy.name}</strong></span>}
             </div>
           </CardBody>
         </Card>
@@ -471,18 +486,18 @@ export default function LoanDetailPage() {
           <CardBody>
             <div className="relative">
               {[
-                { icon: '📝', label: 'Application Submitted', date: loan.startDate,    done: true },
-                { icon: '🔍', label: 'Under Review',          date: loan.startDate,    done: loan.status !== 'PENDING' },
-                { icon: '✅', label: 'Approved',              date: loan.approvedAt,   done: !!loan.approvedAt },
-                { icon: '💸', label: 'Disbursed',             date: loan.disbursedAt,  done: !!loan.disbursedAt },
-                { icon: '📅', label: 'Next Payment Due',      date: loan.nextDueDate,  done: false },
-                { icon: '🏁', label: 'Maturity Date',         date: loan.maturityDate, done: loan.status === 'PAID' },
+                { icon: IconFileEdit, label: 'Application Submitted', date: loan.startDate,    done: true },
+                { icon: IconSearch, label: 'Under Review',          date: loan.startDate,    done: loan.status !== 'PENDING' },
+                { icon: IconCheckCircle, label: 'Approved',              date: loan.approvedAt,   done: !!loan.approvedAt },
+                { icon: IconCoins, label: 'Disbursed',             date: loan.disbursedAt,  done: !!loan.disbursedAt },
+                { icon: IconCalendar, label: 'Next Payment Due',      date: loan.nextDueDate,  done: false },
+                { icon: IconFlag, label: 'Maturity Date',         date: loan.maturityDate, done: loan.status === 'PAID' },
               ].map((step, i, arr) => (
                 <div key={i} className="flex gap-4 pb-6 relative">
                   <div className="flex flex-col items-center">
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center text-lg border-2 z-10
                       ${step.done ? 'bg-teal-500 border-teal-500 text-white' : 'bg-white border-gray-200 text-gray-400'}`}>
-                      {step.icon}
+                      <step.icon className="w-4 h-4" />
                     </div>
                     {i < arr.length - 1 && (
                       <div className={`w-0.5 flex-1 mt-1 ${step.done ? 'bg-teal-300' : 'bg-gray-200'}`} style={{ minHeight: 28 }} />
@@ -551,7 +566,7 @@ export default function LoanDetailPage() {
       )}
 
       {/* Payment Modal */}
-      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="💳 Record Payment"
+      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Record Payment"
         footer={<>
           <Button variant="secondary" onClick={() => setPayOpen(false)}>Cancel</Button>
           <Button loading={paying} onClick={handlePay as any}>Confirm Payment</Button>
