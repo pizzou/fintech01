@@ -27,6 +27,30 @@ public class Organization {
     private String primaryColor;
     private String accentColor;
     private String website;
+
+    /**
+     * The public-facing domain this org is served on, e.g. "growthfinance.rw".
+     * Used by TenantResolutionFilter to map an incoming Host header to this
+     * organization. Must be unique across all orgs (enforced by DB index).
+     * Does NOT include protocol, "www.", or a path.
+     */
+    @Column(unique = true)
+    private String domain;
+
+    /**
+     * True only once the org has proven they control `domain` (DNS TXT
+     * check — see OrganizationController's self-service domain endpoints).
+     * TenantResolutionFilter and CORS only ever match verified domains, so
+     * an unverified/claimed-but-unproven domain never actually receives
+     * live traffic or gets a CORS pass.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean domainVerified = false;
+
+    /** Random token the org must publish as a DNS TXT record to prove ownership of `domain`. Cleared once verified. */
+    private String domainVerificationToken;
+
     private String contactEmail;
     private String contactPhone;
     private String address;

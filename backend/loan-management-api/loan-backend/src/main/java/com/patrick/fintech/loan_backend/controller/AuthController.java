@@ -2,6 +2,8 @@ package com.patrick.fintech.loan_backend.controller;
 import com.patrick.fintech.loan_backend.config.JwtUtils;
 import com.patrick.fintech.loan_backend.dto.*;
 import com.patrick.fintech.loan_backend.model.User;
+import com.patrick.fintech.loan_backend.model.Organization;
+import com.patrick.fintech.loan_backend.security.TenantContext;
 import com.patrick.fintech.loan_backend.repository.UserRepository;
 import com.patrick.fintech.loan_backend.service.*;
 import com.patrick.fintech.loan_backend.service.AuditService;
@@ -85,6 +87,28 @@ public class AuthController {
         }
         user.setLastLoginAt(java.time.LocalDateTime.now());
         userRepository.save(user);
+
+        // Domain-scoped login: if this request landed on a real customer domain
+        // (TenantResolutionFilter matched one), the authenticated user must
+        // belong to THAT organization. Without this check, ABC SACCO staff
+        // could sign in with their own valid credentials from
+        // growthfinance.rw/staff/login — the password check alone doesn't
+        // know which bank's site it's being typed into.
+        // SUPER_ADMIN users (organization == null) are exempt — they aren't
+        // tied to a single tenant domain in the first place.
+        Organization requestOrg = TenantContext.get();
+        if (requestOrg != null && user.getOrganization() != null
+                && !requestOrg.getId().equals(user.getOrganization().getId())) {
+            auditService.log(user.getOrganization(), user, "LOGIN_BLOCKED_WRONG_DOMAIN", "AUTH",
+                String.valueOf(user.getId()),
+                "Login rejected — credentials are valid but belong to a different organization than "
+                    + requestOrg.getName() + "'s domain",
+                null, null, "Authentication");
+            // Same generic message as a bad password — don't reveal that the
+            // account exists elsewhere, that would leak which orgs a given
+            // email is registered with.
+            throw new RuntimeException("Invalid email or password");
+        }
 
         boolean mfaRequiredForRole = user.getRole() != null && MFA_MANDATORY_ROLES.contains(user.getRole().getName());
 

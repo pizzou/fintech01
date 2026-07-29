@@ -35,6 +35,11 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        // Independent of org seeding below — this must still run even though
+        // Growth Finance (and its org row) already exists in production, or
+        // there would be no way to reach the /api/super-admin/** endpoints.
+        ensureSuperAdmin();
+
         if (orgRepo.count() > 0) {
             log.info("Data already seeded — skipping DataSeeder");
             return;
@@ -110,6 +115,34 @@ public class DataSeeder implements CommandLineRunner {
     private Role ensureRole(String name, String desc) {
         return roleRepo.findByName(name)
             .orElseGet(() -> roleRepo.save(new Role(null, name, desc)));
+    }
+
+   
+    private void ensureSuperAdmin() {
+        Role superAdminRole = ensureRole("SUPER_ADMIN",
+            "Platform owner — manages all organizations, billing, and domains across the whole SaaS");
+
+        if (userRepo.existsByRole_NameAndOrganizationIsNull("SUPER_ADMIN")) return;
+
+        String email    = System.getenv("SUPER_ADMIN_EMAIL");
+        String password = System.getenv("SUPER_ADMIN_PASSWORD");
+        String name     = System.getenv("SUPER_ADMIN_NAME");
+        if (email == null || email.isBlank() || password == null || password.isBlank()) {
+            log.info("SUPER_ADMIN_EMAIL/SUPER_ADMIN_PASSWORD not set — skipping super-admin bootstrap " +
+                "(fine until you're ready to onboard another organization; set both and redeploy when you are).");
+            return;
+        }
+
+        User superAdmin = new User();
+        superAdmin.setName((name != null && !name.isBlank()) ? name : "Platform Admin");
+        superAdmin.setEmail(email);
+        superAdmin.setPassword(encoder.encode(password));
+        superAdmin.setRole(superAdminRole);
+        superAdmin.setOrganization(null); // deliberate — not tied to any single tenant
+        superAdmin.setStatus(User.UserStatus.ACTIVE);
+        userRepo.save(superAdmin);
+
+        log.info("Super-admin account bootstrapped: {}", email);
     }
 
     private User makeUser(String name, String email, String pw, Role role, Organization org) {

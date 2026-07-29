@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { currentTenantDomain } from '../lib/tenant';
 
 const API = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api',
@@ -10,6 +11,17 @@ API.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
+
+    // Tells the backend which customer domain this request came from
+    // (growthfinance.rw, abcsacco.rw, ...) so TenantResolutionFilter can
+    // scope /api/public/** correctly. Needed because the frontend and API
+    // usually live on different origins — the Host header the backend sees
+    // is the API's own domain, not the customer's, so we pass it explicitly.
+    // (If you later proxy the API through the same domain as the site, the
+    // backend's own Host-header check covers you too — this header is just
+    // the portable fallback that works either way.)
+    const domain = currentTenantDomain();
+    if (domain) config.headers['X-Tenant-Domain'] = domain;
   }
   return config;
 });
@@ -180,6 +192,11 @@ export const contactMessageApi = {
 };
 
 export const publicApi = {
+  // Resolved purely from the browser's own domain (via X-Tenant-Domain /
+  // Host header on the backend) — this is what growthfinance.rw's frontend
+  // should call, no slug needed. Falls back to /public/tenant/{slug} below
+  // only for local dev, where there's no real domain to resolve.
+  getOrganization: ()            => get(`/public/organization`),
   getTenant:  (slug: string)    => get(`/public/tenant/${slug}`),
   getProducts:(slug: string)    => get(`/public/tenant/${slug}/products`),
   apply:      (data: unknown)   => post('/public/loan-application', data),

@@ -13,4 +13,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmail(String email);
     List<User> findByOrganization(Organization organization);
     long countByOrganization(Organization organization);
+
+    /** True once a platform-level SUPER_ADMIN (organization = NULL) exists — used by DataSeeder to bootstrap exactly one. */
+    boolean existsByRole_NameAndOrganizationIsNull(String roleName);
 }

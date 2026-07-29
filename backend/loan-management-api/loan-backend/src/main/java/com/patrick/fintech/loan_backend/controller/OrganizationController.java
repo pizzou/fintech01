@@ -5,9 +5,17 @@ import com.patrick.fintech.loan_backend.model.*;
 import com.patrick.fintech.loan_backend.repository.*;
 import com.patrick.fintech.loan_backend.util.CurrentUserUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.DirContext;
+import javax.naming.directory.InitialDirContext;
+import java.security.SecureRandom;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 
@@ -21,6 +29,11 @@ public class OrganizationController {
     private final CurrentUserUtil        currentUserUtil;
     private final com.patrick.fintech.loan_backend.service.AuditService auditService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /** Where a client should CNAME their apex/www to. Set via PLATFORM_CNAME_TARGET in production. */
+    @Value("${app.platform.cname-target:sites.loansaas.com}")
+    private String platformCnameTarget;
 
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<Map<String,Object>>> getMyOrg() {
@@ -29,6 +42,14 @@ public class OrganizationController {
 
         Map<String,Object> m = new java.util.LinkedHashMap<>();
         m.put("id", org.getId()); m.put("name", org.getName());
+        // Self-service domain claim/verify — see /me/domain endpoints below.
+        // "domain" only reflects a VERIFIED domain (what's actually live);
+        // an unverified claim in progress shows up in domainPending instead,
+        // so the dashboard can keep showing setup instructions until proven.
+        m.put("domain", org.isDomainVerified() ? org.getDomain() : null);
+        if (org.getDomain() != null && !org.isDomainVerified()) {
+            m.put("domainPending", domainInstructions(org));
+        }
         m.put("logoUrl", org.getLogoUrl()); m.put("primaryColor", org.getPrimaryColor());
         m.put("accentColor", org.getAccentColor()); m.put("website", org.getWebsite());
         m.put("contactEmail", org.getContactEmail()); m.put("contactPhone", org.getContactPhone());
@@ -133,4 +154,183 @@ public class OrganizationController {
         Organization org = currentUserUtil.getCurrentUser().getOrganization();
         return ResponseEntity.ok(ApiResponse.ok(userRepo.findByOrganization(org)));
     }
+
+    /**
+     * Self-service domain claim, step 1 of 2. An org ADMIN submits the
+     * domain they want their public site served on (growthfinance.rw) —
+     * this does NOT make it live yet. It generates a verification token and
+     * returns DNS records the client must publish to prove they actually
+     * control that domain, same pattern as Vercel/Netlify custom domains.
+     * Call POST /me/domain/verify once those records are live to activate it.
+     */
+    @PostMapping("/me/domain")
+@PreAuthorize("hasRole('ADMIN')")
+public ResponseEntity<ApiResponse<Map<String, Object>>> claimDomain(
+        @RequestBody Map<String, Object> body) {
+
+    String domain = normalizeDomain(str(body.get("domain")));
+
+    if (domain == null || !domain.matches(
+            "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")) {
+
+        return ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                        "Enter a plain domain like growthfinance.rw — " +
+                        "no https://, no www., no trailing slash or path."
+                )
+        );
+    }
+
+    Long organizationId = currentUserUtil.getCurrentOrganizationId();
+
+    Organization org = orgRepo.findById(organizationId)
+            .orElseThrow(() ->
+                    new RuntimeException("Organization not found")
+            );
+
+    /*
+     * Check whether another organization already owns this domain.
+     *
+     * Do NOT reassign org after this point because org is captured
+     * by the lambda below.
+     */
+    boolean alreadyClaimed = orgRepo.findByDomainIgnoreCase(domain)
+            .map(existing -> !existing.getId().equals(organizationId))
+            .orElse(false);
+
+    if (alreadyClaimed) {
+        return ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                        "That domain is already claimed by another organization " +
+                        "on this platform. If this is your domain and you believe " +
+                        "this is a mistake, contact support."
+                )
+        );
+    }
+
+    /*
+     * Generate DNS verification token.
+     */
+    String token = "loansaas-verify=" + randomToken();
+
+    org.setDomain(domain);
+    org.setDomainVerified(false);
+    org.setDomainVerificationToken(token);
+
+    /*
+     * Do not assign the result back to org.
+     *
+     * save() returns the same managed entity in the normal JPA case,
+     * and we don't need the returned value here.
+     */
+    orgRepo.save(org);
+
+    auditService.log(
+            org,
+            currentUserUtil.getCurrentUser(),
+            "ORGANIZATION_DOMAIN_CLAIMED",
+            "ORGANIZATION",
+            org.getId().toString(),
+            "Claimed domain '" + domain + "' — pending DNS verification"
+    );
+
+    return ResponseEntity.ok(
+            ApiResponse.ok(
+                    "Domain claimed — follow the DNS instructions to activate it",
+                    domainInstructions(org)
+            )
+    );
+}
+
+    /**
+     * Self-service domain claim, step 2 of 2. Looks up the TXT record the
+     * client was asked to publish under _loansaas-verify.<their domain> and,
+     * if it matches the token from claimDomain(), flips domainVerified to
+     * true — from that moment TenantResolutionFilter and CORS start
+     * trusting the domain and it goes live. DNS propagation can take a
+     * while, so this is safe to retry; nothing bad happens on a "not found yet".
+     */
+    @PostMapping("/me/domain/verify")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String,Object>>> verifyDomain() {
+        Organization org = orgRepo.findById(currentUserUtil.getCurrentOrganizationId())
+            .orElseThrow(() -> new RuntimeException("Organization not found"));
+
+        if (org.getDomain() == null || org.getDomainVerificationToken() == null) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("No domain claim in progress — call POST /me/domain first."));
+        }
+        if (org.isDomainVerified()) {
+            return ResponseEntity.ok(ApiResponse.ok("Already verified", Map.of("domain", org.getDomain(), "domainVerified", true)));
+        }
+
+        boolean found = txtRecordContains("_loansaas-verify." + org.getDomain(), org.getDomainVerificationToken());
+        if (!found) {
+            return ResponseEntity.status(409).body(ApiResponse.error(
+                "Verification record not found yet. DNS changes can take up to a few hours to propagate — add the TXT record shown and try again shortly."));
+        }
+
+        org.setDomainVerified(true);
+        org.setDomainVerificationToken(null);
+        org = orgRepo.save(org);
+        auditService.log(org, currentUserUtil.getCurrentUser(), "ORGANIZATION_DOMAIN_VERIFIED", "ORGANIZATION",
+            org.getId().toString(), "Domain '" + org.getDomain() + "' verified and is now live");
+
+        return ResponseEntity.ok(ApiResponse.ok("Domain verified — your site is now live on " + org.getDomain(),
+            Map.of("domain", org.getDomain(), "domainVerified", true)));
+    }
+
+    /** DNS records + status shown to the client while a domain claim is unverified. */
+    private Map<String,Object> domainInstructions(Organization org) {
+        Map<String,Object> m = new java.util.LinkedHashMap<>();
+        m.put("domain", org.getDomain());
+        m.put("domainVerified", org.isDomainVerified());
+        m.put("dnsRecords", List.of(
+            Map.of("type", "TXT", "name", "_loansaas-verify." + org.getDomain(), "value", org.getDomainVerificationToken(),
+                "purpose", "Proves you control this domain. Remove after verifying, if you like."),
+            Map.of("type", "CNAME", "name", "www." + org.getDomain(), "value", platformCnameTarget,
+                "purpose", "Points your website traffic at this platform.")
+        ));
+        return m;
+    }
+
+    /** DNS TXT lookup via JNDI — no extra dependency needed. Fails closed (returns false) on any lookup error. */
+    private boolean txtRecordContains(String recordName, String expectedValue) {
+        try {
+            Hashtable<String, String> env = new Hashtable<>();
+            env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory");
+            env.put("com.sun.jndi.dns.timeout.initial", "3000");
+            env.put("com.sun.jndi.dns.timeout.retries", "2");
+            DirContext ctx = new InitialDirContext(env);
+            Attributes attrs = ctx.getAttributes(recordName, new String[]{"TXT"});
+            Attribute txt = attrs.get("TXT");
+            if (txt == null) return false;
+            for (int i = 0; i < txt.size(); i++) {
+                String value = String.valueOf(txt.get(i)).replace("\"", "");
+                if (value.contains(expectedValue)) return true;
+            }
+        } catch (NamingException | RuntimeException e) {
+            // No record yet, domain doesn't exist yet, or a transient DNS error —
+            // all treated the same: "not verified yet", never a hard failure.
+        }
+        return false;
+    }
+
+    private String normalizeDomain(String raw) {
+        if (raw == null) return null;
+        String d = raw.trim().toLowerCase()
+            .replaceFirst("^https?://", "")
+            .replaceFirst("^www\\.", "")
+            .replaceAll("/.*$", "");
+        return d.isBlank() ? null : d;
+    }
+
+    private String randomToken() {
+        byte[] bytes = new byte[16];
+        RANDOM.nextBytes(bytes);
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) sb.append(String.format("%02x", b));
+        return sb.toString();
+    }
+
+    private String str(Object o) { return o == null ? null : o.toString(); }
 }

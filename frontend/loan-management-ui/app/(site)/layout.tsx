@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { OfflineProvider } from '../../components/OfflineProvider';
 import { ToastContainer } from '../../components/ui/ToastContainer';
-import { TENANT_SLUG } from '../../lib/tenant';
+import { TENANT_SLUG, isLocalDev, currentTenantDomain } from '../../lib/tenant';
 
 interface TenantConfig {
   name: string;
@@ -67,13 +67,33 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     let cancelled = false;
     setLoading(true);
     setNotFound(false);
-    fetch(`${API_BASE}/public/tenant/${slug}`)
-      .then(r => r.json())
+
+    // Resolve purely from the domain this page is being served on (the
+    // backend reads it from X-Tenant-Domain / Host — see services/api.ts and
+    // TenantResolutionFilter). If that domain isn't mapped to any
+    // organization yet — e.g. still on the default *.vercel.app URL, before
+    // a real custom domain like growthfinance.rw is assigned — fall back to
+    // the old slug-based lookup instead of showing "not found". This is
+    // what keeps an existing deployment working exactly as before right up
+    // until you assign it a real domain.
+    const domain = currentTenantDomain();
+    const headers = domain ? { 'X-Tenant-Domain': domain } : undefined;
+    const legacyUrl = `${API_BASE}/public/tenant/${TENANT_SLUG}`;
+
+    const fetchLegacy = () =>
+      fetch(legacyUrl).then(r => r.json());
+
+    const fetchPrimary = isLocalDev()
+      ? fetchLegacy()
+      : fetch(`${API_BASE}/public/organization`, { headers })
+          .then(r => (r.ok ? r.json() : fetchLegacy()));
+
+    fetchPrimary
       .then((configRes) => {
         if (cancelled) return;
         const data = configRes?.data;
         if (!data || configRes?.success === false) { setNotFound(true); return; }
-        setTenant({ ...FALLBACK_TENANT, ...data, slug });
+        setTenant({ ...FALLBACK_TENANT, ...data, slug: data.domain || TENANT_SLUG });
       })
       .catch(() => { if (!cancelled) setNotFound(true); })
       .finally(() => { if (!cancelled) setLoading(false); });

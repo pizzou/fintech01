@@ -7,6 +7,7 @@ import com.patrick.fintech.loan_backend.dto.publicportal.DashboardSummaryRespons
 import com.patrick.fintech.loan_backend.model.*;
 import com.patrick.fintech.loan_backend.repository.*;
 import com.patrick.fintech.loan_backend.service.*;
+import com.patrick.fintech.loan_backend.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
@@ -580,18 +581,43 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
     }
 
     /**
-     * Returns tenant branding, services config, and contact info
-     * for the public website — identified by URL slug or registration number.
+     * Returns tenant branding, services config, and contact info for the
+     * public website — the org is resolved purely from the request's Host
+     * header (TenantResolutionFilter / TenantContext), no slug needed.
+     * This is the endpoint the Next.js frontend should call on every page
+     * load: GET https://www.growthfinance.rw/api/public/organization ->
+     * this backend, running once, returns Growth Finance's own config.
+     * Returns 404 if the current Host isn't mapped to any Organization.domain.
+     */
+    @GetMapping("/organization")
+    public ResponseEntity<ApiResponse<Map<String,Object>>> getOrganizationForCurrentDomain() {
+        Organization org = TenantContext.get();
+        if (org == null) {
+            return ResponseEntity.status(404).body(
+                ApiResponse.error("No organization is configured for this domain."));
+        }
+        return ResponseEntity.ok(ApiResponse.ok(buildTenantConfig(org, null)));
+    }
+
+    /**
+     * Legacy path kept for local dev / staging hosts that aren't mapped to a
+     * real domain yet — identified by URL slug or registration number
+     * instead of Host header. Prefer /api/public/organization in production.
      */
     @GetMapping("/tenant/{slug}")
     public ResponseEntity<ApiResponse<Map<String,Object>>> getTenantConfig(@PathVariable String slug) {
         Organization org = resolveOrg(slug);
         if (org == null) return ResponseEntity.ok(ApiResponse.ok(demoConfig()));
+        return ResponseEntity.ok(ApiResponse.ok(buildTenantConfig(org, slug)));
+    }
 
+    /** Builds the public branding/config payload shared by /organization and /tenant/{slug}. */
+    Map<String,Object> buildTenantConfig(Organization org, String slug) {
         Map<String,Object> config = new LinkedHashMap<>();
         config.put("id",                 org.getId());
         config.put("name",               org.getName());
-        config.put("slug",               slug);
+        config.put("slug",               slug != null ? slug : org.getDomain());
+        config.put("domain",             org.getDomain());
         config.put("country",            org.getCountry());
         config.put("currency",           org.getDefaultCurrency());
         config.put("primaryColor",       org.getPrimaryColor() != null ? org.getPrimaryColor() : "#0D6B3E");
@@ -628,7 +654,7 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
         config.put("stats", parseListOrDefault(org.getStatsJson(), defaultStats()));
         config.put("testimonials", parseListOrDefault(org.getTestimonialsJson(), defaultTestimonials(org.getName())));
         config.put("team", parseListOrDefault(org.getTeamJson(), defaultTeam()));
-        return ResponseEntity.ok(ApiResponse.ok(config));
+        return config;
     }
 
     /**
@@ -861,8 +887,21 @@ public ResponseEntity<DashboardSummaryResponse> borrowerSummary(
 
     // ---- Helpers ----
 
-    /** Resolves an org by matching its name (lowercased, spaces stripped) or registration number against the slug. */
+    /**
+     * Resolves the organization for this request.
+     *
+     * 1. Preferred path: TenantResolutionFilter already matched the request's
+     *    Host header (e.g. www.growthfinance.rw) to an Organization.domain
+     *    and stashed it in TenantContext — that's what production traffic
+     *    hitting a real customer domain will use, and `slug` is ignored.
+     * 2. Fallback: no domain match (local dev on localhost, a staging URL
+     *    that isn't mapped yet, or an old client still sending tenantSlug) —
+     *    match the slug against org name / registration number, as before.
+     */
     private Organization resolveOrg(String slug) {
+        Organization fromDomain = TenantContext.get();
+        if (fromDomain != null) return fromDomain;
+
         if (slug == null || slug.isBlank()) return null;
         return orgRepo.findAll().stream()
             .filter(o -> o.getName().toLowerCase().replace(" ", "").contains(slug.toLowerCase())
