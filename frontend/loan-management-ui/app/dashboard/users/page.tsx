@@ -12,6 +12,7 @@ interface UserRow {
   role?: { id: number; name: string };
   organization?: { id: number; name: string };
   mustChangePassword?: boolean;
+  status?: string;
 }
 
 const ROLE_BADGE: Record<string, string> = {
@@ -109,12 +110,22 @@ export default function UsersPage() {
     } finally { setResetting(false); }
   };
 
-  const handleDelete = async () => {
+  const handleDeactivate = async () => {
     if (!delUserId) return;
     try {
       await del('/users/' + delUserId);
-      toast('success', 'User deleted');
+      toast('success', 'User deactivated — their login is disabled and their history is preserved');
       setDelUserId(null);
+      load();
+    } catch (err: unknown) {
+      toast('error', getMsg(err));
+    }
+  };
+
+  const handleReactivate = async (userId: number) => {
+    try {
+      await put(`/users/${userId}/reactivate`, {});
+      toast('success', 'User reactivated');
       load();
     } catch (err: unknown) {
       toast('error', getMsg(err));
@@ -167,6 +178,11 @@ export default function UsersPage() {
                             Pending first login
                           </span>
                         )}
+                        {u.status === 'SUSPENDED' && (
+                          <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 align-middle">
+                            Deactivated
+                          </span>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -198,12 +214,21 @@ export default function UsersPage() {
                         >
                           Reset PW
                         </button>
-                        <button
-                          onClick={() => setDelUserId(u.id)}
-                          className="text-xs text-red-500 hover:text-red-700 font-medium border border-red-200 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition"
-                        >
-                          Delete
-                        </button>
+                        {u.status === 'SUSPENDED' ? (
+                          <button
+                            onClick={() => handleReactivate(u.id)}
+                            className="text-xs text-green-600 hover:text-green-800 font-medium border border-green-200 bg-green-50 hover:bg-green-100 px-2.5 py-1 rounded-lg transition"
+                          >
+                            Reactivate
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setDelUserId(u.id)}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium border border-red-200 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition"
+                          >
+                            Deactivate
+                          </button>
+                        )}
                       </div>
                     </td>
                   )}
@@ -307,12 +332,12 @@ export default function UsersPage() {
                   d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">Delete User?</h2>
-            <p className="text-sm text-gray-500 mb-6">This action cannot be undone.</p>
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">Deactivate User?</h2>
+            <p className="text-sm text-gray-500 mb-6">Their login will be disabled immediately. Their history stays intact, and an admin can reactivate the account later.</p>
             <div className="flex gap-3">
-              <button onClick={handleDelete}
+              <button onClick={handleDeactivate}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-lg text-sm font-medium transition">
-                Delete
+                Deactivate
               </button>
               <button onClick={() => setDelUserId(null)}
                 className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg text-sm font-medium transition">
