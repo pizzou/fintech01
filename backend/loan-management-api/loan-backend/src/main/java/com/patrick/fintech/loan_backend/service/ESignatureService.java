@@ -152,6 +152,7 @@ public class ESignatureService {
         return req;
     }
 
+    @Transactional(readOnly = true)
     public ESignatureRequest getByToken(String token) {
         return esignRepo.findBySigningToken(token).orElseThrow(() -> new RuntimeException("Signing link not found or expired"));
     }
