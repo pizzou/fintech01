@@ -13,28 +13,55 @@ import org.springframework.context.annotation.Configuration;
 public class CreditBureauProperties {
 
     /**
-     * Maximum time to establish a connection to the credit bureau provider.
+     * Enables/disables credit bureau integration.
+     *
+     * When false, the application can still start and operate
+     * without making external credit bureau requests.
+     */
+    private boolean enabled = false;
+
+    /**
+     * Credit bureau provider name.
+     *
+     * Example:
+     * TRANSUNION_RW
+     * CRB_AFRICA
+     */
+    private String provider = "TRANSUNION_RW";
+
+    /**
+     * Base URL of the external credit bureau API.
+     */
+    private String baseUrl = "";
+
+    /**
+     * API key used when communicating with the provider.
+     */
+    private String apiKey = "";
+
+    /**
+     * Connection timeout in seconds.
      */
     private int connectTimeoutSeconds = 10;
 
     /**
-     * Maximum time waiting for the credit bureau provider response.
+     * Read timeout in seconds.
      */
     private int readTimeoutSeconds = 30;
 
     /**
-     * Optional provider base URL.
+     * Number of days for which a credit report remains valid.
      */
-    private String baseUrl;
+    private int reportValidityDays = 90;
 
     /**
-     * Optional API key.
+     * API path used when requesting a credit report.
      */
-    private String apiKey;
+    private String creditReportPath = "/credit-reports";
 
     /**
-     * Provider name.
+     * API path used when reporting a loan.
      */
-    private String provider = "TRANSUNION_RW";
+    private String loanReportPath = "/loan-reports";
 }
 
