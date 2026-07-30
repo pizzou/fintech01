@@ -1,39 +1,40 @@
+
 package com.patrick.fintech.loan_backend.config;
 
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
 
 @Getter
 @Setter
+@Configuration
 @ConfigurationProperties(prefix = "app.credit-bureau")
 public class CreditBureauProperties {
 
-    private boolean enabled = false;
-
-    private String provider = "NONE";
-
-    private String baseUrl;
-
-    private String apiKey;
-
-    private String creditReportPath = "/v1/credit-report";
-
-    private String loanReportPath = "/v1/loan-report";
-
+    /**
+     * Maximum time to establish a connection to the credit bureau provider.
+     */
     private int connectTimeoutSeconds = 10;
 
+    /**
+     * Maximum time waiting for the credit bureau provider response.
+     */
     private int readTimeoutSeconds = 30;
 
-    private int maxAttempts = 3;
-
-    private long initialBackoffMillis = 1000;
-
-    private int reportValidityDays = 90;
+    /**
+     * Optional provider base URL.
+     */
+    private String baseUrl;
 
     /**
-     * Never automatically replace a failed real bureau result
-     * with a fake/simulated score in production.
+     * Optional API key.
      */
-    private boolean allowSimulation = false;
+    private String apiKey;
+
+    /**
+     * Provider name.
+     */
+    private String provider = "TRANSUNION_RW";
 }
+
