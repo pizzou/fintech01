@@ -12,13 +12,33 @@ const fmt = (n?: number, currency = 'RWF') =>
 const PERIODS = ['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY', 'CUSTOM'];
 
 type BnrSummary = {
-  organizationName?: string; bnrInstitutionCode?: string; reportPeriod?: string;
-  periodStart?: string; periodEnd?: string; totalLoansIssued?: number; activeLoans?: number;
-  closedLoans?: number; pendingLoans?: number; rejectedLoans?: number; overdueLoans?: number;
-  defaultedLoans?: number; totalPrincipalDisbursed?: number; outstandingPrincipal?: number;
-  totalInterestCollected?: number; interestAccruedUnpaid?: number; totalProcessingFees?: number;
-  maleBorrowers?: number; femaleBorrowers?: number; otherGenderBorrowers?: number;
-  parAmount?: number; parRatio?: number; nplAmount?: number; nplRatio?: number; currency?: string;
+  organizationName?: string;
+  bnrInstitutionCode?: string;
+  reportPeriod?: string;
+  periodStart?: string;
+  periodEnd?: string;
+
+  totalLoans?: number; // changed
+  activeLoans?: number;
+  closedLoans?: number;
+  pendingLoans?: number;
+  rejectedLoans?: number;
+  overdueLoans?: number;
+  defaultedLoans?: number;
+
+  totalPrincipalDisbursed?: number;
+  outstandingPrincipal?: number;
+  totalInterestCollected?: number;
+  interestAccruedUnpaid?: number;
+  totalProcessingFees?: number;
+  maleBorrowers?: number;
+  femaleBorrowers?: number;
+  otherGenderBorrowers?: number;
+  parAmount?: number;
+  parRatio?: number;
+  nplAmount?: number;
+  nplRatio?: number;
+  currency?: string;
 };
 type BreakdownRow = { label: string; count: number; amount: number };
 type CreditRecord = {
@@ -176,7 +196,7 @@ function BnrTab() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Total Loans Issued', value: summary.totalLoansIssued },
+              { label: 'Total Loans Issued', value: summary.totalLoans },
               { label: 'Active Loans', value: summary.activeLoans },
               { label: 'Closed Loans', value: summary.closedLoans },
               { label: 'Pending Loans', value: summary.pendingLoans },
