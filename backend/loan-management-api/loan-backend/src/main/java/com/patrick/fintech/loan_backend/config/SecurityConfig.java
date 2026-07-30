@@ -20,7 +20,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -34,178 +33,177 @@ public class SecurityConfig {
     private final TenantResolutionFilter tenantResolutionFilter;
     private final OrganizationRepository orgRepo;
 
-    /**
-     * Static frontend/admin origins.
-     *
-     * IMPORTANT:
-     * Do not put a trailing "/" here.
-     *
-     * Example:
-     * https://fintech01-aydw.vercel.app
-     */
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
     private String allowedOrigins;
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(
+            HttpSecurity http
+    ) throws Exception {
 
         http
-            .cors(cors -> cors.configurationSource(corsSource()))
 
-            .csrf(csrf -> csrf.disable())
+            .cors(cors ->
+                    cors.configurationSource(
+                            corsSource()
+                    )
+            )
+
+            .csrf(csrf ->
+                    csrf.disable()
+            )
 
             .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                    session.sessionCreationPolicy(
+                            SessionCreationPolicy.STATELESS
+                    )
             )
 
             .exceptionHandling(exception ->
-                exception.authenticationEntryPoint((request, response, authException) -> {
+                    exception.authenticationEntryPoint(
+                            (request, response, authException) -> {
 
-                    response.setStatus(
-                        jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED
-                    );
+                                response.setStatus(
+                                        401
+                                );
 
-                    response.setContentType("application/json");
+                                response.setContentType(
+                                        "application/json"
+                                );
 
-                    response.getWriter().write(
-                        "{\"success\":false,\"error\":\"Your session has expired or is no longer valid. Please log in again.\"}"
-                    );
-                })
+                                response.getWriter()
+                                        .write(
+                                                "{\"success\":false,\"error\":\"Unauthorized.\"}"
+                                        );
+                            }
+                    )
             )
 
             .authorizeHttpRequests(auth -> auth
 
-                .requestMatchers(
-                    "/api/auth/**",
-                    "/h2-console/**",
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
-                    "/api-docs/**",
-                    "/actuator/health",
-                    "/api/public/**"
-                )
-                .permitAll()
+                    .requestMatchers(
+                            "/api/auth/**",
+                            "/h2-console/**",
+                            "/swagger-ui/**",
+                            "/swagger-ui.html",
+                            "/api-docs/**",
+                            "/actuator/health",
+                            "/api/public/**"
+                    )
+                    .permitAll()
 
-                .anyRequest()
-                .authenticated()
+                    .anyRequest()
+                    .authenticated()
             )
 
             .headers(headers ->
-                headers.frameOptions(frame -> frame.sameOrigin())
+                    headers.frameOptions(
+                            frame -> frame.sameOrigin()
+                    )
             )
 
             /*
-             * Resolve organization from Host/X-Tenant-Domain.
+             * MUST execute before JWT authentication.
              */
             .addFilterBefore(
-                tenantResolutionFilter,
-                UsernamePasswordAuthenticationFilter.class
+                    tenantResolutionFilter,
+                    UsernamePasswordAuthenticationFilter.class
             )
 
             /*
              * JWT authentication.
              */
             .addFilterBefore(
-                jwtFilter,
-                UsernamePasswordAuthenticationFilter.class
+                    jwtFilter,
+                    UsernamePasswordAuthenticationFilter.class
             )
 
             /*
-             * Regulatory API key authentication.
+             * Regulatory API authentication.
              */
             .addFilterBefore(
-                regulatoryApiKeyAuthFilter,
-                UsernamePasswordAuthenticationFilter.class
+                    regulatoryApiKeyAuthFilter,
+                    UsernamePasswordAuthenticationFilter.class
             );
 
         return http.build();
     }
 
-    /**
-     * CORS configuration.
-     *
-     * Supports:
-     *
-     * 1. Main LoanSaaS frontend
-     * 2. Vercel frontend
-     * 3. Local development
-     * 4. Verified customer domains
-     */
     @Bean
     public CorsConfigurationSource corsSource() {
 
         return request -> {
 
-            CorsConfiguration config = new CorsConfiguration();
+            CorsConfiguration config =
+                    new CorsConfiguration();
 
-            config.setAllowedMethods(List.of(
-                "GET",
-                "POST",
-                "PUT",
-                "PATCH",
-                "DELETE",
-                "OPTIONS"
-            ));
+            config.setAllowedMethods(
+                    List.of(
+                            "GET",
+                            "POST",
+                            "PUT",
+                            "PATCH",
+                            "DELETE",
+                            "OPTIONS"
+                    )
+            );
 
-            config.setAllowedHeaders(List.of("*"));
+            config.setAllowedHeaders(
+                    List.of("*")
+            );
 
-            config.setExposedHeaders(List.of(
-                "Authorization",
-                "Content-Type"
-            ));
+            config.setExposedHeaders(
+                    List.of(
+                            "Authorization",
+                            "Content-Type"
+                    )
+            );
 
             config.setAllowCredentials(true);
 
-            String origin = request.getHeader("Origin");
+            String origin =
+                    request.getHeader("Origin");
 
-            if (origin == null || origin.isBlank()) {
-                return config;
-            }
-
-            if (isAllowedStaticOrigin(origin) ||
-                isVerifiedOrganizationOrigin(origin)) {
-
-                /*
-                 * IMPORTANT:
-                 * Return the exact Origin.
-                 *
-                 * Never return "*"
-                 * when credentials are enabled.
-                 */
-                config.setAllowedOrigins(List.of(origin));
+            if (origin == null
+                    || origin.isBlank()) {
 
                 return config;
             }
 
-            /*
-             * Unknown browser origin.
-             *
-             * Returning an empty configuration prevents CORS headers
-             * from being added.
-             */
+            if (isAllowedStaticOrigin(origin)
+                    || isVerifiedOrganizationOrigin(origin)) {
+
+                config.setAllowedOrigins(
+                        List.of(origin)
+                );
+
+                return config;
+            }
+
             return new CorsConfiguration();
         };
     }
 
-    /**
-     * Check the static origins configured through:
-     *
-     * CORS_ORIGINS
-     */
-    private boolean isAllowedStaticOrigin(String origin) {
+    private boolean isAllowedStaticOrigin(
+            String origin
+    ) {
 
-        if (allowedOrigins == null || allowedOrigins.isBlank()) {
+        if (allowedOrigins == null
+                || allowedOrigins.isBlank()) {
+
             return false;
         }
 
-        String normalizedOrigin = normalizeOrigin(origin);
+        String normalizedOrigin =
+                normalizeOrigin(origin);
 
-        for (String configured : allowedOrigins.split(",")) {
+        for (String configured :
+                allowedOrigins.split(",")) {
 
-            String normalizedConfigured =
-                normalizeOrigin(configured);
+            if (normalizedOrigin.equalsIgnoreCase(
+                    normalizeOrigin(configured)
+            )) {
 
-            if (normalizedOrigin.equalsIgnoreCase(normalizedConfigured)) {
                 return true;
             }
         }
@@ -213,18 +211,21 @@ public class SecurityConfig {
         return false;
     }
 
-    /**
-     * Check whether Origin belongs to a verified customer organization.
-     */
-    private boolean isVerifiedOrganizationOrigin(String origin) {
+    private boolean isVerifiedOrganizationOrigin(
+            String origin
+    ) {
 
         try {
 
-            URI uri = URI.create(origin);
+            URI uri =
+                    URI.create(origin);
 
-            String host = uri.getHost();
+            String host =
+                    uri.getHost();
 
-            if (host == null || host.isBlank()) {
+            if (host == null
+                    || host.isBlank()) {
+
                 return false;
             }
 
@@ -235,8 +236,10 @@ public class SecurityConfig {
             }
 
             return orgRepo
-                .findByDomainIgnoreCaseAndDomainVerifiedTrue(host)
-                .isPresent();
+                    .findByDomainIgnoreCaseAndDomainVerifiedTrue(
+                            host
+                    )
+                    .isPresent();
 
         } catch (Exception e) {
 
@@ -244,57 +247,65 @@ public class SecurityConfig {
         }
     }
 
-    /**
-     * Converts:
-     *
-     * https://www.example.com/
-     *
-     * into:
-     *
-     * https://example.com
-     */
-    private String normalizeOrigin(String origin) {
+    private String normalizeOrigin(
+            String origin
+    ) {
 
         if (origin == null) {
             return "";
         }
 
-        String value = origin.trim();
+        String value =
+                origin.trim();
 
         while (value.endsWith("/")) {
-            value = value.substring(0, value.length() - 1);
+            value =
+                    value.substring(
+                            0,
+                            value.length() - 1
+                    );
         }
 
         try {
 
-            URI uri = URI.create(value);
+            URI uri =
+                    URI.create(value);
 
-            String scheme = uri.getScheme();
-            String host = uri.getHost();
+            String scheme =
+                    uri.getScheme();
 
-            if (scheme == null || host == null) {
+            String host =
+                    uri.getHost();
+
+            if (scheme == null
+                    || host == null) {
+
                 return value.toLowerCase();
             }
 
-            host = host.toLowerCase();
+            host =
+                    host.toLowerCase();
 
             if (host.startsWith("www.")) {
-                host = host.substring(4);
+                host =
+                        host.substring(4);
             }
 
-            int port = uri.getPort();
+            int port =
+                    uri.getPort();
 
             if (port > 0) {
+
                 return scheme.toLowerCase()
-                    + "://"
-                    + host
-                    + ":"
-                    + port;
+                        + "://"
+                        + host
+                        + ":"
+                        + port;
             }
 
             return scheme.toLowerCase()
-                + "://"
-                + host;
+                    + "://"
+                    + host;
 
         } catch (Exception e) {
 
@@ -307,6 +318,7 @@ public class SecurityConfig {
             AuthenticationConfiguration configuration
     ) throws Exception {
 
-        return configuration.getAuthenticationManager();
+        return configuration
+                .getAuthenticationManager();
     }
 }
