@@ -56,16 +56,7 @@ public class Loan {
     private String referenceNumber;
 
 
-    // ============================================================
-    // ORGANIZATION / TENANT
-    // ============================================================
-
-    /**
-     * Every loan belongs to exactly one organization.
-     *
-     * Kept LAZY to avoid loading the entire organization whenever
-     * a loan is retrieved.
-     */
+    
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
@@ -95,15 +86,7 @@ public class Loan {
     private Branch branch;
 
 
-    // ============================================================
-    // BORROWER
-    // ============================================================
-
-    /**
-     * Borrower associated with the loan.
-     *
-     * A loan cannot exist without a borrower.
-     */
+   @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
         name = "borrower_id",
@@ -117,13 +100,7 @@ public class Loan {
     private Borrower borrower;
 
 
-    // ============================================================
-    // APPROVAL / OFFICER
-    // ============================================================
-
-    /**
-     * User who approved the loan.
-     */
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
         name = "approved_by",
