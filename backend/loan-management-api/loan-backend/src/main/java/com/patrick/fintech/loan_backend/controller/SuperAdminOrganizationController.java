@@ -1,8 +1,11 @@
 package com.patrick.fintech.loan_backend.controller;
 
 import com.patrick.fintech.loan_backend.dto.ApiResponse;
+import com.patrick.fintech.loan_backend.dto.RegisterRequest;
 import com.patrick.fintech.loan_backend.model.Organization;
+import com.patrick.fintech.loan_backend.model.User;
 import com.patrick.fintech.loan_backend.repository.OrganizationRepository;
+import com.patrick.fintech.loan_backend.service.AuthService;
 import com.patrick.fintech.loan_backend.util.CurrentUserUtil;
 import com.patrick.fintech.loan_backend.service.AuditService;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +42,7 @@ public class SuperAdminOrganizationController {
     private final OrganizationRepository orgRepo;
     private final CurrentUserUtil currentUserUtil;
     private final AuditService auditService;
+    private final AuthService authService;
 
     /** Every organization on the platform — name, domain, status, plan. Never exposed to org-scoped users. */
     @GetMapping
@@ -83,6 +87,33 @@ public class SuperAdminOrganizationController {
         auditService.log(org, currentUserUtil.getCurrentUser(), "ORGANIZATION_CREATED", "ORGANIZATION",
             org.getId().toString(), "Platform admin onboarded new organization: " + org.getName());
         return ResponseEntity.ok(ApiResponse.ok("Organization created", org));
+    }
+
+    /**
+     * Creates the FIRST staff account for a newly onboarded organization —
+     * the one thing registerByAdmin() can't do on its own, since it requires
+     * being logged in as an ADMIN of that org, and a brand-new org has none.
+     * Uses the exact same safe pattern as every other admin-created account:
+     * the caller never sets a password — one is generated and emailed to
+     * the new admin, who must change it on first login.
+     * Body: { name, email }
+     */
+    @PostMapping("/{id}/admin")
+    public ResponseEntity<ApiResponse<User>> createFirstAdmin(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        Organization org = orgRepo.findById(id).orElseThrow(() -> new RuntimeException("Organization not found"));
+
+        RegisterRequest req = new RegisterRequest();
+        req.setName(str(body.get("name")));
+        req.setEmail(str(body.get("email")));
+        req.setRole("ADMIN");
+        req.setOrganizationId(org.getId());
+
+        User admin = authService.registerByAdmin(req);
+        auditService.log(org, currentUserUtil.getCurrentUser(), "ORGANIZATION_FIRST_ADMIN_CREATED", "USER",
+            admin.getId().toString(), "Bootstrapped first admin (" + admin.getEmail() + ") for " + org.getName());
+
+        return ResponseEntity.ok(ApiResponse.ok(
+            "Admin account created — login details were emailed to " + admin.getEmail(), admin));
     }
 
     /**

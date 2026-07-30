@@ -130,27 +130,36 @@ public class DataSeeder implements CommandLineRunner {
      */
     private void ensureNobleLoanSolutions() {
         String regNumber = "REG-NLS-001";
-        if (orgRepo.existsByRegistrationNumber(regNumber)) return;
-
         Role adminRole = ensureRole("ADMIN", "Full platform access");
 
-        // Edit these branding/contact defaults directly — every field here is also
-        // editable live from Dashboard → Settings → Website once staff can log in.
-        // No `domain` set yet — the public site isn't built, so this org simply
-        // won't resolve on any hostname until you assign one (see
-        // SuperAdminOrganizationController.setDomain or the self-service
-        // /api/organizations/me/domain flow) once the site exists.
-        Organization noble = orgRepo.save(Organization.builder()
-            .name("Noble Loan Solutions").industry("Microfinance").country("RW")
-            .defaultCurrency("RWF").timezone("Africa/Kigali").locale("en-RW")
-            .primaryColor("#1B3A6B").accentColor("#D4A017")
-            .registrationNumber(regNumber)
-            .subscriptionTier(Organization.SubscriptionTier.TRIAL)
-            .status(Organization.OrgStatus.PENDING_SETUP)
-            .maxUsers(20).maxActiveLoans(1000)
-            .minLoanAmount(20000.0).maxLoanAmount(10_000_000.0)
-            .subscribedAt(LocalDateTime.now()).trialEndsAt(LocalDateTime.now().plusDays(14))
-            .build());
+        Organization noble = orgRepo.findByRegistrationNumber(regNumber).orElse(null);
+        if (noble == null) {
+            // Edit these branding/contact defaults directly — every field here is also
+            // editable live from Dashboard → Settings → Website once staff can log in.
+            // No `domain` set yet — the public site isn't built, so this org simply
+            // won't resolve on any hostname until you assign one (see
+            // SuperAdminOrganizationController.setDomain or the self-service
+            // /api/organizations/me/domain flow) once the site exists.
+            noble = orgRepo.save(Organization.builder()
+                .name("Noble Loan Solutions").industry("Microfinance").country("RW")
+                .defaultCurrency("RWF").timezone("Africa/Kigali").locale("en-RW")
+                .primaryColor("#1B3A6B").accentColor("#D4A017")
+                .registrationNumber(regNumber)
+                .subscriptionTier(Organization.SubscriptionTier.TRIAL)
+                .status(Organization.OrgStatus.PENDING_SETUP)
+                .maxUsers(20).maxActiveLoans(1000)
+                .minLoanAmount(20000.0).maxLoanAmount(10_000_000.0)
+                .subscribedAt(LocalDateTime.now()).trialEndsAt(LocalDateTime.now().plusDays(14))
+                .build());
+            accountingService.ensureChartOfAccounts(noble);
+        }
+
+        // Independent of whether the org row already existed — this is the fix.
+        // Previously this whole method returned as soon as the org existed, which
+        // meant setting NOBLE_ADMIN_EMAIL/PASSWORD *after* the org was already
+        // created (exactly what happened on Render) permanently skipped ever
+        // creating the admin, even across further redeploys.
+        if (userRepo.countByOrganization(noble) > 0) return;
 
         // Admin account — from env vars, same pattern as BOOTSTRAP_ADMIN_*. Skips
         // (doesn't fail startup) if unset, since this is a second org being added
@@ -159,14 +168,13 @@ public class DataSeeder implements CommandLineRunner {
         String password = System.getenv("NOBLE_ADMIN_PASSWORD");
         String name     = System.getenv("NOBLE_ADMIN_NAME");
         if (email == null || email.isBlank() || password == null || password.isBlank()) {
-            log.info("NOBLE_ADMIN_EMAIL/NOBLE_ADMIN_PASSWORD not set — Noble Loan Solutions org created " +
-                "with no admin account yet. Set both and redeploy, or create the admin later via " +
+            log.info("NOBLE_ADMIN_EMAIL/NOBLE_ADMIN_PASSWORD not set — Noble Loan Solutions org has " +
+                "no admin account yet. Set both and redeploy, or create the admin later via " +
                 "POST /api/super-admin/organizations/{}/admin.", noble.getId());
             return;
         }
         String adminName = (name != null && !name.isBlank()) ? name : "Admin";
         userRepo.save(makeUser(adminName, email, password, adminRole, noble));
-        accountingService.ensureChartOfAccounts(noble);
 
         log.info("Noble Loan Solutions bootstrapped — admin login: {}", email);
     }

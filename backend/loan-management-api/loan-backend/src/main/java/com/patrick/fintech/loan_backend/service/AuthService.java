@@ -39,6 +39,9 @@ public class AuthService {
         this.mailService            = mailService;
     }
 
+    private static final java.util.Set<String> PUBLIC_REGISTRATION_BLOCKED_ROLES =
+        java.util.Set.of("ADMIN", "SUPER_ADMIN", "INSTITUTION_ADMIN", "MANAGER");
+
     /** Public, unauthenticated self-registration — the person chooses their own password.
      *  Do not change this to auto-generate a password; that would break genuine signup. */
     public User register(RegisterRequest request) {
@@ -48,6 +51,14 @@ public class AuthService {
 
         // RoleRepository.findByName now accepts String
         String roleName = request.getRole() != null ? request.getRole() : "LOAN_OFFICER";
+        // This endpoint is public and unauthenticated (permitAll in SecurityConfig) — anyone
+        // could otherwise pick role=ADMIN and any organizationId and mint themselves an admin
+        // account for a tenant they have nothing to do with. Privileged roles must go through
+        // registerByAdmin() (requires an existing ADMIN of that org) or the super-admin's
+        // dedicated first-admin bootstrap endpoint instead.
+        if (PUBLIC_REGISTRATION_BLOCKED_ROLES.contains(roleName.toUpperCase())) {
+            throw new RuntimeException("This role can't be self-registered. Ask your organization's admin to add you instead.");
+        }
         Role role = roleRepository.findByName(roleName)
                 .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
 
