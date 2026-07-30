@@ -1,16 +1,14 @@
 package com.patrick.fintech.loan_backend.controller;
 
-import com.patrick.fintech.loan_backend.dto.ApiResponse;
 import com.patrick.fintech.loan_backend.model.CreditBureauCheck;
 import com.patrick.fintech.loan_backend.service.CreditBureauService;
-import com.patrick.fintech.loan_backend.util.CurrentUserUtil;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/credit-bureau")
@@ -18,25 +16,75 @@ import java.util.Optional;
 public class CreditBureauController {
 
     private final CreditBureauService creditBureauService;
-    private final CurrentUserUtil currentUserUtil;
 
-    @PostMapping("/borrowers/{id}/check")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','LOAN_OFFICER','CREDIT_ANALYST')")
-    public ResponseEntity<ApiResponse<CreditBureauCheck>> check(@PathVariable Long id) {
-        CreditBureauCheck result = creditBureauService.runCheck(
-            id, currentUserUtil.getCurrentOrganizationId(), currentUserUtil.getCurrentUser().getName());
-        return ResponseEntity.ok(ApiResponse.ok("Credit bureau check completed", result));
+    @PostMapping("/borrowers/{borrowerId}/check")
+    public ResponseEntity<?> runCheck(
+            @PathVariable Long borrowerId,
+            @RequestParam Long organizationId,
+            @RequestParam(required = false) String requestedBy
+    ) {
+
+        CreditBureauCheck result =
+            creditBureauService.runCheck(
+                borrowerId,
+                organizationId,
+                requestedBy
+            );
+
+        return ResponseEntity.ok(
+            Map.of(
+                "success", true,
+                "data", result
+            )
+        );
     }
 
-    @GetMapping("/borrowers/{id}/history")
-    public ResponseEntity<ApiResponse<List<CreditBureauCheck>>> history(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.ok(creditBureauService.getHistory(id)));
+    @GetMapping("/borrowers/{borrowerId}/history")
+    public ResponseEntity<?> history(
+            @PathVariable Long borrowerId,
+            @RequestParam Long organizationId
+    ) {
+
+        List<CreditBureauCheck> history =
+            creditBureauService.getHistory(
+                borrowerId,
+                organizationId
+            );
+
+        return ResponseEntity.ok(
+            Map.of(
+                "success", true,
+                "data", history
+            )
+        );
     }
 
-    @GetMapping("/borrowers/{id}/latest")
-    public ResponseEntity<ApiResponse<CreditBureauCheck>> latest(@PathVariable Long id) {
-        Optional<CreditBureauCheck> latest = creditBureauService.getLatest(id);
-        return ResponseEntity.ok(latest.map(ApiResponse::ok)
-            .orElseGet(() -> ApiResponse.error("No credit bureau check on file for this borrower")));
+    @GetMapping("/borrowers/{borrowerId}/latest")
+    public ResponseEntity<?> latest(
+            @PathVariable Long borrowerId,
+            @RequestParam Long organizationId
+    ) {
+
+        return creditBureauService
+            .getLatest(
+                borrowerId,
+                organizationId
+            )
+            .map(check ->
+                ResponseEntity.ok(
+                    Map.of(
+                        "success", true,
+                        "data", check
+                    )
+                )
+            )
+            .orElseGet(() ->
+                ResponseEntity.ok(
+                    Map.of(
+                        "success", true,
+                        "data", null
+                    )
+                )
+            );
     }
 }

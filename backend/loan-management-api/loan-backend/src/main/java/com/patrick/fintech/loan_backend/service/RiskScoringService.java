@@ -82,8 +82,15 @@ public class RiskScoringService {
         score -= existingActive * 8;
 
         // 7. Credit bureau history (max 15 pts) — uses the freshest non-expired bureau pull on file
-        var bureauCheck = creditBureauCheckRepo.findFirstByBorrower_IdOrderByCreatedAtDesc(b.getId())
-            .filter(c -> !c.isExpired() && c.getStatus() == CreditBureauCheck.CheckStatus.COMPLETED);
+        var bureauCheck = creditBureauCheckRepo
+    .findFirstByBorrower_IdAndOrganization_IdOrderByCreatedAtDesc(
+        b.getId(),
+        b.getOrganization().getId()
+    )
+    .filter(c ->
+        !c.isExpired()
+        && c.getStatus() == CreditBureauCheck.CheckStatus.COMPLETED
+    );
         if (bureauCheck.isPresent()) {
             CreditBureauCheck cb = bureauCheck.get();
             if (Boolean.TRUE.equals(cb.getHasDefaultHistory())) score -= 12;

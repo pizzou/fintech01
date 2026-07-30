@@ -12,18 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.*;
 
-/**
- * Double-entry general ledger. Every transaction that moves real money —
- * disbursing a loan, receiving a payment, writing off a bad debt — posts a
- * balanced journal entry here automatically, so the platform's numbers can
- * actually be reconciled by a finance team the way a bank expects, not just
- * read off a list of loan/payment rows.
- *
- * This is a real, working general ledger for the core lending transactions.
- * It is NOT a full accounting suite (no AP/AR beyond loans, no multi-currency
- * revaluation, no period close/lock) — those are legitimate next steps, not
- * silently faked here.
- */
+
+ 
 @Service
 @RequiredArgsConstructor
 @Slf4j
