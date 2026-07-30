@@ -11,10 +11,13 @@ import com.patrick.fintech.loan_backend.service.AuditService;
 import com.patrick.fintech.loan_backend.service.AuthService;
 import com.patrick.fintech.loan_backend.service.MailService;
 import com.patrick.fintech.loan_backend.service.MfaService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.SecureRandom;
@@ -29,6 +32,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AuthController {
 
+    private final AuthenticationManager authenticationManager;
     private final AuthService authService;
     private final JwtUtils jwtUtils;
     private final UserRepository userRepository;
@@ -37,15 +41,19 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
 
-    private static final SecureRandom OTP_RANDOM =
-            new SecureRandom();
+    private static final SecureRandom OTP_RANDOM = new SecureRandom();
 
     private static final Set<String> MFA_MANDATORY_ROLES =
             Set.of("ADMIN", "MANAGER");
 
     private static final int MAX_FAILED_ATTEMPTS = 5;
-
     private static final int LOCKOUT_MINUTES = 15;
+
+    /*
+     * ============================================================
+     * REGISTER
+     * ============================================================
+     */
 
     @PostMapping("/register")
     @Transactional
@@ -53,8 +61,7 @@ public class AuthController {
             @RequestBody RegisterRequest req
     ) {
 
-        User created =
-                authService.register(req);
+        User created = authService.register(req);
 
         auditService.log(
                 created.getOrganization(),
@@ -62,19 +69,37 @@ public class AuthController {
                 "USER_REGISTERED",
                 "AUTH",
                 String.valueOf(created.getId()),
-                created.getName()
-                        + " ("
-                        + created.getEmail()
-                        + ") registered",
+                created.getName() + " (" + created.getEmail() + ") registered",
                 null,
                 null,
                 "Authentication"
         );
 
-        return ResponseEntity.ok(
-                safe(created)
-        );
+        return ResponseEntity.ok(safe(created));
     }
+
+
+    /*
+     * ============================================================
+     * LOGIN
+     * ============================================================
+     *
+     * IMPORTANT:
+     *
+     * Tenant is resolved FIRST from TenantContext.
+     *
+     * Then the user is looked up INSIDE that organization.
+     *
+     * Therefore:
+     *
+     * Growth Finance user
+     * +
+     * Noble Loan Solutions domain
+     *
+     * => user is NOT authenticated.
+     *
+     * This prevents cross-tenant login.
+     */
 
     @PostMapping("/login")
     @Transactional
@@ -83,75 +108,93 @@ public class AuthController {
     ) {
 
         /*
-         * ==========================================================
-         * 1. TENANT MUST EXIST
-         * ==========================================================
+         * --------------------------------------------------------
+         * Validate request
+         * --------------------------------------------------------
          */
 
-        Organization requestOrg =
-                TenantContext.get();
+        if (req == null) {
+            throw new RuntimeException("Invalid login request");
+        }
+
+        if (req.getEmail() == null || req.getEmail().isBlank()) {
+            throw new RuntimeException("Invalid email or password");
+        }
+
+        if (req.getPassword() == null || req.getPassword().isBlank()) {
+            throw new RuntimeException("Invalid email or password");
+        }
+
+        String email = req.getEmail().trim().toLowerCase();
+
 
         /*
-         * If this is a tenant login page, there MUST be a tenant.
+         * --------------------------------------------------------
+         * RESOLVE TENANT BEFORE USER AUTHENTICATION
+         * --------------------------------------------------------
+         */
+
+        Organization requestOrg = TenantContext.get();
+
+
+        /*
+         * If there is no tenant, do NOT perform a normal customer
+         * login.
          *
-         * This prevents:
+         * This prevents someone from calling:
          *
          * POST /api/auth/login
          *
-         * from becoming a global login endpoint.
+         * directly against the Render backend and bypassing the
+         * customer-domain requirement.
+         *
+         * Platform SUPER_ADMIN can be handled separately if your
+         * platform needs that functionality.
          */
+
         if (requestOrg == null) {
 
             throw new RuntimeException(
-                    "Tenant could not be determined for this login request."
+                    "Invalid tenant. Please access your organization's official website."
             );
         }
 
+
         /*
-         * ==========================================================
-         * 2. NORMALIZE EMAIL
-         * ==========================================================
+         * --------------------------------------------------------
+         * TENANT-SCOPED USER LOOKUP
+         * --------------------------------------------------------
+         *
+         * DO NOT use:
+         *
+         * userRepository.findByEmail(email)
+         *
+         * here.
+         *
+         * That performs a global lookup.
+         *
+         * Instead:
+         *
+         * findByEmailAndOrganization()
          */
 
-        if (req.getEmail() == null
-                || req.getEmail().isBlank()) {
+        User user = userRepository
+                .findByEmailAndOrganization(email, requestOrg)
+                .orElse(null);
 
-            throw new RuntimeException(
-                    "Invalid email or password"
-            );
-        }
-
-        String email =
-                req.getEmail()
-                        .trim()
-                        .toLowerCase();
 
         /*
-         * ==========================================================
-         * 3. FIND USER INSIDE THIS TENANT ONLY
-         * ==========================================================
+         * --------------------------------------------------------
+         * USER DOES NOT BELONG TO THIS TENANT
+         * --------------------------------------------------------
          *
-         * THIS IS THE CRITICAL FIX.
-         */
-
-        User user =
-                userRepository
-                        .findByOrganizationAndEmail(
-                                requestOrg,
-                                email
-                        )
-                        .orElse(null);
-
-        /*
-         * If Growth Finance user tries to log in from Noble:
+         * Return the same generic message as bad credentials.
          *
-         * requestOrg = Noble
+         * Do not reveal:
          *
-         * findByOrganizationAndEmail(Noble, growth@email.com)
+         * "This email belongs to Growth Finance."
          *
-         * => empty
-         *
-         * Therefore authentication fails.
+         * while the user is visiting Noble Loan Solutions.
          */
 
         if (user == null) {
@@ -162,7 +205,8 @@ public class AuthController {
                     "LOGIN_FAILED",
                     "AUTH",
                     null,
-                    "Login rejected — invalid tenant credentials",
+                    "Login failed — invalid credentials for tenant "
+                            + requestOrg.getName(),
                     null,
                     null,
                     "Authentication"
@@ -173,41 +217,26 @@ public class AuthController {
             );
         }
 
-        /*
-         * ==========================================================
-         * 4. VERIFY USER REALLY BELONGS TO TENANT
-         * ==========================================================
-         */
-
-        if (user.getOrganization() == null
-                || !requestOrg.getId()
-                    .equals(user.getOrganization().getId())) {
-
-            throw new RuntimeException(
-                    "Invalid email or password"
-            );
-        }
 
         /*
-         * ==========================================================
-         * 5. ACCOUNT LOCK CHECK
-         * ==========================================================
+         * --------------------------------------------------------
+         * ACCOUNT LOCK CHECK
+         * --------------------------------------------------------
          */
 
-        LocalDateTime now =
-                LocalDateTime.now();
-
-        if (user.getLockedUntil() != null
-                && user.getLockedUntil().isAfter(now)) {
+        if (
+                user.getLockedUntil() != null
+                        && user.getLockedUntil().isAfter(LocalDateTime.now())
+        ) {
 
             long minutesLeft =
                     Duration.between(
-                            now,
+                            LocalDateTime.now(),
                             user.getLockedUntil()
                     ).toMinutes() + 1;
 
             auditService.log(
-                    user.getOrganization(),
+                    requestOrg,
                     user,
                     "LOGIN_BLOCKED_ACCOUNT_LOCKED",
                     "AUTH",
@@ -226,20 +255,31 @@ public class AuthController {
             );
         }
 
+
         /*
-         * ==========================================================
-         * 6. VERIFY PASSWORD
-         * ==========================================================
+         * --------------------------------------------------------
+         * PASSWORD AUTHENTICATION
+         * --------------------------------------------------------
+         *
+         * AuthenticationManager may still use the email globally.
+         * That is okay for password verification because we have
+         * ALREADY established that this email belongs to the
+         * current tenant.
+         *
+         * The critical security boundary is the tenant-scoped
+         * lookup above.
          */
 
-        boolean passwordCorrect =
-                req.getPassword() != null
-                        && passwordEncoder.matches(
-                                req.getPassword(),
-                                user.getPassword()
-                        );
+        try {
 
-        if (!passwordCorrect) {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            email,
+                            req.getPassword()
+                    )
+            );
+
+        } catch (Exception e) {
 
             int attempts =
                     user.getFailedLoginAttempts() == null
@@ -248,22 +288,26 @@ public class AuthController {
 
             attempts++;
 
-            user.setFailedLoginAttempts(
-                    attempts
-            );
+            user.setFailedLoginAttempts(attempts);
+
+
+            /*
+             * ----------------------------------------------------
+             * LOCK ACCOUNT AFTER TOO MANY ATTEMPTS
+             * ----------------------------------------------------
+             */
 
             if (attempts >= MAX_FAILED_ATTEMPTS) {
 
                 user.setLockedUntil(
-                        now.plusMinutes(
-                                LOCKOUT_MINUTES
-                        )
+                        LocalDateTime.now()
+                                .plusMinutes(LOCKOUT_MINUTES)
                 );
 
                 userRepository.save(user);
 
                 auditService.log(
-                        user.getOrganization(),
+                        requestOrg,
                         user,
                         "ACCOUNT_LOCKED",
                         "AUTH",
@@ -277,17 +321,17 @@ public class AuthController {
                 );
 
                 throw new RuntimeException(
-                        "Too many failed attempts. "
-                                + "Account locked for "
+                        "Too many failed attempts. Account locked for "
                                 + LOCKOUT_MINUTES
                                 + " minutes."
                 );
             }
 
+
             userRepository.save(user);
 
             auditService.log(
-                    user.getOrganization(),
+                    requestOrg,
                     user,
                     "LOGIN_FAILED",
                     "AUTH",
@@ -307,22 +351,64 @@ public class AuthController {
             );
         }
 
+
         /*
-         * ==========================================================
-         * 7. PASSWORD CORRECT
-         * ==========================================================
+         * --------------------------------------------------------
+         * IMPORTANT SECOND TENANT CHECK
+         * --------------------------------------------------------
+         *
+         * This is defensive.
+         *
+         * The user was already retrieved using:
+         *
+         * email + organization
+         *
+         * But we verify the relationship again before issuing
+         * anything.
+         */
+
+        if (
+                user.getOrganization() == null
+                        || !requestOrg.getId()
+                        .equals(user.getOrganization().getId())
+        ) {
+
+            auditService.log(
+                    requestOrg,
+                    user,
+                    "LOGIN_BLOCKED_WRONG_TENANT",
+                    "AUTH",
+                    String.valueOf(user.getId()),
+                    "Login rejected — authenticated user does not belong "
+                            + "to the requested tenant",
+                    null,
+                    null,
+                    "Authentication"
+            );
+
+            throw new RuntimeException(
+                    "Invalid email or password"
+            );
+        }
+
+
+        /*
+         * --------------------------------------------------------
+         * SUCCESSFUL PASSWORD CHECK
+         * --------------------------------------------------------
          */
 
         user.setFailedLoginAttempts(0);
         user.setLockedUntil(null);
-        user.setLastLoginAt(now);
+        user.setLastLoginAt(LocalDateTime.now());
 
         userRepository.save(user);
 
+
         /*
-         * ==========================================================
-         * 8. MFA
-         * ==========================================================
+         * --------------------------------------------------------
+         * MFA REQUIREMENT
+         * --------------------------------------------------------
          */
 
         boolean mfaRequiredForRole =
@@ -331,26 +417,25 @@ public class AuthController {
                                 user.getRole().getName()
                         );
 
-        if (!user.isTwoFactorEnabled()
-                && mfaRequiredForRole) {
+
+        /*
+         * --------------------------------------------------------
+         * MANDATORY MFA SETUP
+         * --------------------------------------------------------
+         */
+
+        if (
+                !user.isTwoFactorEnabled()
+                        && mfaRequiredForRole
+        ) {
 
             Map<String, Object> body =
                     new LinkedHashMap<>();
 
-            body.put(
-                    "mfaSetupRequired",
-                    true
-            );
-
-            body.put(
-                    "mfaRequired",
-                    false
-            );
-
-            body.put(
-                    "email",
-                    user.getEmail()
-            );
+            body.put("mfaSetupRequired", true);
+            body.put("mfaRequired", false);
+            body.put("otpRequired", false);
+            body.put("email", user.getEmail());
 
             body.put(
                     "setupToken",
@@ -361,38 +446,58 @@ public class AuthController {
 
             body.put(
                     "message",
-                    "Your role requires two-factor authentication. Complete setup to continue."
+                    "Your role requires two-factor authentication. "
+                            + "Complete setup to continue."
             );
 
             return ResponseEntity.ok(body);
         }
 
+
         /*
-         * ==========================================================
-         * 9. TOTP MFA
-         * ==========================================================
+         * --------------------------------------------------------
+         * TOTP MFA
+         * --------------------------------------------------------
          */
 
         if (user.isTwoFactorEnabled()) {
 
-            if (req.getMfaCode() == null
-                    || req.getMfaCode().isBlank()) {
+            if (
+                    req.getMfaCode() == null
+                            || req.getMfaCode().isBlank()
+            ) {
 
                 return ResponseEntity.ok(
                         Map.of(
                                 "mfaRequired",
                                 true,
-
+                                "otpRequired",
+                                false,
                                 "email",
                                 user.getEmail()
                         )
                 );
             }
 
-            if (!mfaService.verifyCode(
-                    user,
-                    req.getMfaCode()
-            )) {
+
+            if (
+                    !mfaService.verifyCode(
+                            user,
+                            req.getMfaCode().trim()
+                    )
+            ) {
+
+                auditService.log(
+                        requestOrg,
+                        user,
+                        "LOGIN_FAILED_MFA",
+                        "AUTH",
+                        String.valueOf(user.getId()),
+                        "Invalid MFA code",
+                        null,
+                        null,
+                        "Authentication"
+                );
 
                 throw new RuntimeException(
                         "Invalid MFA code"
@@ -401,21 +506,33 @@ public class AuthController {
 
         } else {
 
+
             /*
-             * ======================================================
-             * 10. EMAIL OTP
-             * ======================================================
+             * ----------------------------------------------------
+             * EMAIL OTP
+             * ----------------------------------------------------
+             *
+             * Non-MFA users still receive an email verification
+             * code.
              */
 
-            if (req.getOtp() == null
-                    || req.getOtp().isBlank()) {
+            LocalDateTime now =
+                    LocalDateTime.now();
+
+
+            /*
+             * Generate OTP when one wasn't supplied.
+             */
+
+            if (
+                    req.getOtp() == null
+                            || req.getOtp().isBlank()
+            ) {
 
                 String code =
                         String.format(
                                 "%06d",
-                                OTP_RANDOM.nextInt(
-                                        1_000_000
-                                )
+                                OTP_RANDOM.nextInt(1_000_000)
                         );
 
                 user.setLoginOtpHash(
@@ -439,20 +556,29 @@ public class AuthController {
                         Map.of(
                                 "otpRequired",
                                 true,
-
+                                "mfaRequired",
+                                false,
                                 "email",
                                 user.getEmail(),
-
                                 "message",
                                 "We sent a 6-digit verification code to your email."
                         )
                 );
             }
 
-            if (user.getLoginOtpHash() == null
-                    || user.getLoginOtpExpiresAt() == null
-                    || user.getLoginOtpExpiresAt()
-                        .isBefore(now)) {
+
+            /*
+             * ----------------------------------------------------
+             * VERIFY OTP
+             * ----------------------------------------------------
+             */
+
+            if (
+                    user.getLoginOtpHash() == null
+                            || user.getLoginOtpExpiresAt() == null
+                            || user.getLoginOtpExpiresAt()
+                            .isBefore(now)
+            ) {
 
                 throw new RuntimeException(
                         "Your verification code has expired. "
@@ -460,10 +586,12 @@ public class AuthController {
                 );
             }
 
+
             int otpAttempts =
                     user.getLoginOtpAttempts() == null
                             ? 0
                             : user.getLoginOtpAttempts();
+
 
             if (otpAttempts >= 5) {
 
@@ -479,10 +607,13 @@ public class AuthController {
                 );
             }
 
-            if (!passwordEncoder.matches(
-                    req.getOtp().trim(),
-                    user.getLoginOtpHash()
-            )) {
+
+            if (
+                    !passwordEncoder.matches(
+                            req.getOtp().trim(),
+                            user.getLoginOtpHash()
+                    )
+            ) {
 
                 user.setLoginOtpAttempts(
                         otpAttempts + 1
@@ -495,9 +626,13 @@ public class AuthController {
                 );
             }
 
+
             /*
-             * Consume OTP.
+             * OTP correct.
+             *
+             * Consume it so it cannot be reused.
              */
+
             user.setLoginOtpHash(null);
             user.setLoginOtpExpiresAt(null);
             user.setLoginOtpAttempts(0);
@@ -505,14 +640,15 @@ public class AuthController {
             userRepository.save(user);
         }
 
+
         /*
-         * ==========================================================
-         * 11. SUCCESS
-         * ==========================================================
+         * --------------------------------------------------------
+         * LOGIN SUCCESS
+         * --------------------------------------------------------
          */
 
         auditService.log(
-                user.getOrganization(),
+                requestOrg,
                 user,
                 "LOGIN_SUCCESS",
                 "AUTH",
@@ -525,95 +661,127 @@ public class AuthController {
                 "Authentication"
         );
 
+
         /*
-         * Generate JWT only after tenant-scoped authentication.
+         * --------------------------------------------------------
+         * GENERATE JWT
+         * --------------------------------------------------------
          */
+
         String token =
-                jwtUtils.generateToken(user);
+                jwtUtils.generateToken(
+                        user.getEmail()
+                );
+
+
+        /*
+         * --------------------------------------------------------
+         * RESPONSE
+         * --------------------------------------------------------
+         */
 
         Map<String, Object> body =
                 safe(user);
 
-        body.put(
-                "token",
-                token
-        );
-
-        body.put(
-                "mfaRequired",
-                false
-        );
-
-        body.put(
-                "mfaSetupRequired",
-                false
-        );
-
-        body.put(
-                "otpRequired",
-                false
-        );
+        body.put("token", token);
+        body.put("mfaRequired", false);
+        body.put("mfaSetupRequired", false);
+        body.put("otpRequired", false);
 
         return ResponseEntity.ok(body);
     }
 
+
+    /*
+     * ============================================================
+     * CURRENT USER
+     * ============================================================
+     */
+
     @GetMapping("/me")
     @Transactional
     public ResponseEntity<Map<String, Object>> me(
-            org.springframework.security.core.Authentication auth
+            Authentication auth
     ) {
+
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new RuntimeException("Not authenticated");
+        }
+
 
         Organization requestOrg =
                 TenantContext.get();
 
-        if (requestOrg == null) {
 
+        if (requestOrg == null) {
             throw new RuntimeException(
-                    "Tenant could not be determined."
+                    "Tenant could not be resolved"
             );
         }
+
 
         String email =
                 auth.getName()
                         .trim()
                         .toLowerCase();
 
+
         /*
-         * Again: tenant-scoped lookup.
+         * IMPORTANT:
+         *
+         * /me must also be tenant-scoped.
+         *
+         * Never do:
+         *
+         * userRepository.findByEmail(email)
          */
+
         User user =
                 userRepository
-                        .findByOrganizationAndEmail(
-                                requestOrg,
-                                email
+                        .findByEmailAndOrganization(
+                                email,
+                                requestOrg
                         )
                         .orElseThrow(
                                 () -> new RuntimeException(
-                                        "Current user not found."
+                                        "Current user not found"
                                 )
                         );
 
+
         /*
-         * Extra protection.
+         * Defensive tenant verification.
          */
-        if (user.getOrganization() == null
-                || !requestOrg.getId()
-                    .equals(user.getOrganization().getId())) {
+
+        if (
+                user.getOrganization() == null
+                        || !requestOrg.getId()
+                        .equals(user.getOrganization().getId())
+        ) {
 
             throw new RuntimeException(
-                    "Tenant mismatch."
+                    "Current user not found"
             );
         }
+
 
         return ResponseEntity.ok(
                 safe(user)
         );
     }
 
+
+    /*
+     * ============================================================
+     * SAFE USER RESPONSE
+     * ============================================================
+     */
+
     private Map<String, Object> safe(User u) {
 
         Map<String, Object> m =
                 new LinkedHashMap<>();
+
 
         m.put(
                 "userId",
@@ -647,6 +815,13 @@ public class AuthController {
                 u.isMustChangePassword()
         );
 
+
+        /*
+         * --------------------------------------------------------
+         * ORGANIZATION
+         * --------------------------------------------------------
+         */
+
         if (u.getOrganization() != null) {
 
             m.put(
@@ -679,6 +854,10 @@ public class AuthController {
 
         } else {
 
+            /*
+             * Platform-level user.
+             */
+
             m.put(
                     "organizationId",
                     null
@@ -704,6 +883,7 @@ public class AuthController {
                     "UTC"
             );
         }
+
 
         return m;
     }

@@ -6,13 +6,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 
-public interface OrganizationRepository extends JpaRepository<Organization, Long> {
-    Optional<Organization> findByRegistrationNumber(String regNumber);
-    boolean existsByRegistrationNumber(String regNumber);
 
-    /** Any org claiming this domain, verified or not — used for uniqueness checks during self-service claim. */
+public interface OrganizationRepository extends JpaRepository<Organization, Long> {
+
+    Optional<Organization> findByTenantKeyIgnoreCase(String tenantKey);
+
     Optional<Organization> findByDomainIgnoreCase(String domain);
 
-
     Optional<Organization> findByDomainIgnoreCaseAndDomainVerifiedTrue(String domain);
+
+    Optional<Organization> findByRegistrationNumber(String registrationNumber);
 }

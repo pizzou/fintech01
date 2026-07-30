@@ -12,10 +12,7 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
 
   
-    Optional<User> findByEmail(String email);
-
-    boolean existsByEmail(String email);
-
+    
 
     Optional<User> findByOrganizationAndEmail(
             Organization organization,
@@ -23,15 +20,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
     );
 
    
-    Optional<User> findByOrganization_IdAndEmail(
-            Long organizationId,
-            String email
+    Optional<User> findByEmail(String email);
+
+    Optional<User> findByEmailAndOrganization(
+            String email,
+            Organization organization
     );
+
+    boolean existsByEmail(String email);
 
     List<User> findByOrganization(Organization organization);
 
     long countByOrganization(Organization organization);
 
-    
     boolean existsByRole_NameAndOrganizationIsNull(String roleName);
 }

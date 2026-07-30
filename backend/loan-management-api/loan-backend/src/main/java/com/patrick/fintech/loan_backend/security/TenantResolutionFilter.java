@@ -20,9 +20,10 @@ import java.util.Optional;
 @Slf4j
 public class TenantResolutionFilter extends OncePerRequestFilter {
 
-    private final OrganizationRepository organizationRepository;
+    private static final String TENANT_KEY_HEADER = "X-Tenant-Key";
+    private static final String TENANT_DOMAIN_HEADER = "X-Tenant-Domain";
 
-    private static final String TENANT_HEADER = "X-Tenant-Domain";
+    private final OrganizationRepository organizationRepository;
 
     @Override
     protected void doFilterInternal(
@@ -35,87 +36,146 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
 
         try {
 
-            String tenantDomain = resolveTenantDomain(request);
+            String tenantKey = request.getHeader(TENANT_KEY_HEADER);
+
+            String tenantDomain = request.getHeader(TENANT_DOMAIN_HEADER);
+
+            String origin = request.getHeader("Origin");
 
             log.info(
-                    "[TENANT] {} {} | TenantDomain={} | Origin={} | Host={}",
-                    request.getMethod(),
-                    request.getRequestURI(),
-                    tenantDomain,
-                    request.getHeader("Origin"),
-                    request.getHeader("Host")
+                "[TENANT] {} {} | TenantKey={} | TenantDomain={} | Origin={} | Host={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                tenantKey,
+                tenantDomain,
+                origin,
+                request.getHeader("Host")
             );
 
-           
-            if (tenantDomain == null || tenantDomain.isBlank()) {
+            /*
+             * 1. Explicit tenant key has highest priority.
+             *
+             * This is what your Vercel deployments should use.
+             */
+            if (tenantKey != null && !tenantKey.isBlank()) {
 
-                filterChain.doFilter(request, response);
-                return;
-            }
+                Optional<Organization> organization =
+                    organizationRepository.findByTenantKeyIgnoreCase(
+                        tenantKey.trim()
+                    );
 
-          
-            if (isInfrastructureDomain(tenantDomain)) {
+                if (organization.isPresent()) {
 
-                filterChain.doFilter(request, response);
-                return;
-            }
+                    Organization org = organization.get();
 
-           
-            Optional<Organization> organizationOptional =
-                    organizationRepository.findByDomainIgnoreCase(tenantDomain);
+                    TenantContext.set(org);
 
-            if (organizationOptional.isEmpty()) {
+                    log.info(
+                        "[TENANT] Resolved '{}' (id={}) using X-Tenant-Key={}",
+                        org.getName(),
+                        org.getId(),
+                        tenantKey
+                    );
 
-                log.warn(
-                        "[TENANT] Unknown tenant domain: {}",
-                        tenantDomain
-                );
-
-                response.setStatus(
-                        HttpServletResponse.SC_BAD_REQUEST
-                );
-
-                response.setContentType("application/json");
-
-                response.getWriter().write(
-                        "{\"success\":false,\"error\":\"Unknown tenant.\"}"
-                );
-
-                return;
-            }
-
-            Organization organization =
-                    organizationOptional.get();
-
-            
-            if (organization.getStatus() != Organization.OrgStatus.ACTIVE
-                    && organization.getStatus() != Organization.OrgStatus.PENDING_SETUP) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
 
                 log.warn(
-                        "[TENANT] Organization {} is not active",
-                        organization.getName()
+                    "[TENANT] Unknown tenant key: {}",
+                    tenantKey
                 );
 
-                response.setStatus(
-                        HttpServletResponse.SC_FORBIDDEN
-                );
-
-                response.setContentType("application/json");
-
-                response.getWriter().write(
-                        "{\"success\":false,\"error\":\"Organization is not active.\"}"
-                );
-
+                sendUnknownTenant(response);
                 return;
             }
 
-            TenantContext.set(organization);
+            /*
+             * 2. Explicit tenant domain.
+             *
+             * Useful later when you have:
+             *
+             * https://growthfinance.rw
+             * https://nobleloansolutions.rw
+             */
+            if (tenantDomain != null && !tenantDomain.isBlank()) {
 
-            log.info(
-                    "[TENANT] Resolved '{}' id={} domain={}",
-                    organization.getName(),
-                    organization.getId(),
-                    tenantDomain
+                String normalizedDomain =
+                    normalizeDomain(tenantDomain);
+
+                Optional<Organization> organization =
+                    organizationRepository.findByDomainIgnoreCase(
+                        normalizedDomain
+                    );
+
+                if (organization.isPresent()) {
+
+                    Organization org = organization.get();
+
+                    TenantContext.set(org);
+
+                    log.info(
+                        "[TENANT] Resolved '{}' (id={}) using domain={}",
+                        org.getName(),
+                        org.getId(),
+                        normalizedDomain
+                    );
+
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                log.warn(
+                    "[TENANT] Unknown tenant domain: {}",
+                    normalizedDomain
+                );
+
+                sendUnknownTenant(response);
+                return;
+            }
+
+            /*
+             * 3. Try Origin ONLY when it represents an actual
+             * customer domain.
+             *
+             * DO NOT treat *.vercel.app as a tenant.
+             */
+            String originDomain = extractOriginDomain(origin);
+
+            if (originDomain != null
+                    && !isPlatformFrontend(originDomain)) {
+
+                Optional<Organization> organization =
+                    organizationRepository.findByDomainIgnoreCase(
+                        originDomain
+                    );
+
+                if (organization.isPresent()) {
+
+                    Organization org = organization.get();
+
+                    TenantContext.set(org);
+
+                    log.info(
+                        "[TENANT] Resolved '{}' from Origin={}",
+                        org.getName(),
+                        originDomain
+                    );
+
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+            }
+
+            /*
+             * 4. No tenant.
+             *
+             * Some endpoints are platform-level/public.
+             */
+            log.debug(
+                "[TENANT] No tenant resolved for {} {}",
+                request.getMethod(),
+                request.getRequestURI()
             );
 
             filterChain.doFilter(request, response);
@@ -126,77 +186,43 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
         }
     }
 
-    private String resolveTenantDomain(
-            HttpServletRequest request
-    ) {
+    private String extractOriginDomain(String origin) {
 
-       
-        String domain =
-                request.getHeader(TENANT_HEADER);
-
-        if (domain != null && !domain.isBlank()) {
-            return normalizeDomain(domain);
+        if (origin == null || origin.isBlank()) {
+            return null;
         }
-
-       
-        String origin =
-                request.getHeader("Origin");
-
-        if (origin != null && !origin.isBlank()) {
-
-            String originDomain =
-                    extractDomainFromOrigin(origin);
-
-            if (originDomain != null
-                    && !originDomain.isBlank()) {
-
-                return normalizeDomain(originDomain);
-            }
-        }
-
-        return null;
-    }
-
-    private String extractDomainFromOrigin(
-            String origin
-    ) {
 
         try {
 
-            URI uri =
-                    URI.create(origin.trim());
+            URI uri = URI.create(origin.trim());
 
-            return uri.getHost();
+            return normalizeDomain(uri.getHost());
 
         } catch (Exception e) {
 
             log.warn(
-                    "[TENANT] Invalid Origin: {}",
-                    origin
+                "[TENANT] Could not parse Origin={}",
+                origin
             );
 
             return null;
         }
     }
 
-    private String normalizeDomain(
-            String domain
-    ) {
+    private String normalizeDomain(String domain) {
 
         if (domain == null || domain.isBlank()) {
             return null;
         }
 
-        String result =
-                domain.trim().toLowerCase();
+        String result = domain.trim().toLowerCase();
 
         if (result.startsWith("http://")
                 || result.startsWith("https://")) {
 
             try {
 
-                URI uri =
-                        URI.create(result);
+                URI uri = URI.create(result);
 
                 result = uri.getHost();
 
@@ -210,58 +236,81 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
             return null;
         }
 
-        
-        int colonIndex =
-                result.indexOf(':');
+        int colon = result.indexOf(':');
 
-        if (colonIndex > -1) {
-            result =
-                    result.substring(0, colonIndex);
+        if (colon > -1) {
+            result = result.substring(0, colon);
         }
 
-    
         if (result.startsWith("www.")) {
-            result =
-                    result.substring(4);
+            result = result.substring(4);
         }
 
-        
         while (result.endsWith(".")) {
-            result =
-                    result.substring(
-                            0,
-                            result.length() - 1
-                    );
+            result = result.substring(0, result.length() - 1);
         }
 
         return result;
     }
 
-    private boolean isInfrastructureDomain(
-            String domain
-    ) {
+    private boolean isPlatformFrontend(String domain) {
 
         if (domain == null) {
             return true;
         }
 
-        String normalized =
-                domain.toLowerCase();
+        String normalized = domain.toLowerCase();
 
-        if (normalized.equals(
-                "fintech01.onrender.com"
-        )) {
+        /*
+         * Your platform frontend.
+         */
+        if (normalized.equals("fintech01-aydw.vercel.app")) {
             return true;
         }
 
-        
+        /*
+         * Your Noble frontend.
+         *
+         * IMPORTANT:
+         * This is still not used as tenant identity.
+         * Tenant identity comes from X-Tenant-Key.
+         */
+        if (normalized.equals("nobleloan-fev7-one.vercel.app")) {
+            return true;
+        }
+
+        /*
+         * Any Vercel deployment should not automatically
+         * become a tenant.
+         */
+        if (normalized.endsWith(".vercel.app")) {
+            return true;
+        }
+
+        /*
+         * Backend infrastructure.
+         */
+        if (normalized.equals("fintech01.onrender.com")) {
+            return true;
+        }
+
         if (normalized.equals("localhost")
                 || normalized.equals("127.0.0.1")) {
             return true;
         }
 
-     
-
         return false;
+    }
+
+    private void sendUnknownTenant(HttpServletResponse response)
+            throws IOException {
+
+        response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+
+        response.setContentType("application/json");
+
+        response.getWriter().write(
+            "{\"success\":false,\"error\":\"Unknown organization.\"}"
+        );
     }
 }
