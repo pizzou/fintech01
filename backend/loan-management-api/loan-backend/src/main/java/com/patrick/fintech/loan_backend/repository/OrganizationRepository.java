@@ -1,4 +1,3 @@
-
 package com.patrick.fintech.loan_backend.repository;
 
 import com.patrick.fintech.loan_backend.model.Organization;
@@ -13,15 +12,9 @@ public interface OrganizationRepository
 
     Optional<Organization> findByDomainIgnoreCase(String domain);
 
-    Optional<Organization>
-    findByDomainIgnoreCaseAndDomainVerifiedTrue(String domain);
+    Optional<Organization> findByRegistrationNumber(String registrationNumber);
 
-    Optional<Organization>
-    findByRegistrationNumber(String registrationNumber);
-
-    boolean existsByDomainIgnoreCase(String domain);
-
-    boolean existsByRegistrationNumber(String registrationNumber);
-
-    Optional<Organization> findByTenantKeyIgnoreCase(String tenantKey);
+    Optional<Organization> findByDomainIgnoreCaseAndDomainVerifiedTrue(
+            String domain
+    );
 }
