@@ -707,40 +707,116 @@ export const privacyApi = {
  * on check/history/latest.
  */
 
+/**
+ * =========================================================
+ * CREDIT BUREAU
+ * =========================================================
+ */
+
 export const creditBureauApi = {
+
+  /**
+   * Run a credit bureau check.
+   *
+   * Backend:
+   * POST /api/credit-bureau/borrowers/{borrowerId}/check
+   *      ?organizationId={organizationId}
+   *      &requestedBy={requestedBy}
+   */
   check:
     (
       borrowerId: number,
-      organizationId: number
-    ) =>
-      post(
-        `/credit-bureau/borrowers/${borrowerId}/check?organizationId=${organizationId}`
-      ),
+      organizationId: number,
+      requestedBy?: string
+    ) => {
 
+      const params = new URLSearchParams();
+
+      params.set(
+        'organizationId',
+        String(organizationId)
+      );
+
+      if (requestedBy?.trim()) {
+        params.set(
+          'requestedBy',
+          requestedBy.trim()
+        );
+      }
+
+      return post(
+        `/credit-bureau/borrowers/${borrowerId}/check?${params.toString()}`
+      );
+    },
+
+
+  /**
+   * Get credit bureau history for a borrower.
+   *
+   * Backend:
+   * GET /api/credit-bureau/borrowers/{borrowerId}/history
+   *     ?organizationId={organizationId}
+   */
   history:
     (
       borrowerId: number,
       organizationId: number
-    ) =>
-      get(
-        `/credit-bureau/borrowers/${borrowerId}/history?organizationId=${organizationId}`
-      ),
+    ) => {
 
+      const params = new URLSearchParams();
+
+      params.set(
+        'organizationId',
+        String(organizationId)
+      );
+
+      return get(
+        `/credit-bureau/borrowers/${borrowerId}/history?${params.toString()}`
+      );
+    },
+
+
+  /**
+   * Get latest credit bureau check.
+   *
+   * Backend:
+   * GET /api/credit-bureau/borrowers/{borrowerId}/latest
+   *     ?organizationId={organizationId}
+   */
   latest:
     (
       borrowerId: number,
       organizationId: number
-    ) =>
-      get(
-        `/credit-bureau/borrowers/${borrowerId}/latest?organizationId=${organizationId}`
-      ),
+    ) => {
 
+      const params = new URLSearchParams();
+
+      params.set(
+        'organizationId',
+        String(organizationId)
+      );
+
+      return get(
+        `/credit-bureau/borrowers/${borrowerId}/latest?${params.toString()}`
+      );
+    },
+
+
+  /**
+   * Get credit bureau report for a loan.
+   *
+   * Keep these if your backend implements them.
+   */
   reportForLoan:
     (loanId: number) =>
       get(
         `/credit-bureau/loans/${loanId}/report`
       ),
 
+
+  /**
+   * Retry credit bureau report.
+   */
   retryReport:
     (loanId: number) =>
       post(
@@ -990,14 +1066,8 @@ export const contactMessageApi = {
       ),
 };
 
-/**
- * =========================================================
- * PUBLIC / CLIENT APIs
- * =========================================================
- *
- * These requests also receive X-Tenant-Domain
- * automatically through the interceptor above.
- */
+
+
 
 export const publicApi = {
   getOrganization:
