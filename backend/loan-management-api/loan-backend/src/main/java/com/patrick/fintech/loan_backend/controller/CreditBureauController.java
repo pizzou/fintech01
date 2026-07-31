@@ -2,6 +2,7 @@ package com.patrick.fintech.loan_backend.controller;
 
 import com.patrick.fintech.loan_backend.model.CreditBureauCheck;
 import com.patrick.fintech.loan_backend.service.CreditBureauService;
+import com.patrick.fintech.loan_backend.util.CurrentUserUtil;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
@@ -16,13 +17,15 @@ import java.util.Map;
 public class CreditBureauController {
 
     private final CreditBureauService creditBureauService;
+    private final CurrentUserUtil currentUserUtil;
 
     @PostMapping("/borrowers/{borrowerId}/check")
     public ResponseEntity<?> runCheck(
             @PathVariable Long borrowerId,
-            @RequestParam Long organizationId,
             @RequestParam(required = false) String requestedBy
     ) {
+
+        Long organizationId = currentUserUtil.getCurrentOrganizationId();
 
         CreditBureauCheck result =
             creditBureauService.runCheck(
@@ -41,9 +44,10 @@ public class CreditBureauController {
 
     @GetMapping("/borrowers/{borrowerId}/history")
     public ResponseEntity<?> history(
-            @PathVariable Long borrowerId,
-            @RequestParam Long organizationId
+            @PathVariable Long borrowerId
     ) {
+
+        Long organizationId = currentUserUtil.getCurrentOrganizationId();
 
         List<CreditBureauCheck> history =
             creditBureauService.getHistory(
@@ -61,9 +65,10 @@ public class CreditBureauController {
 
     @GetMapping("/borrowers/{borrowerId}/latest")
     public ResponseEntity<?> latest(
-            @PathVariable Long borrowerId,
-            @RequestParam Long organizationId
+            @PathVariable Long borrowerId
     ) {
+
+        Long organizationId = currentUserUtil.getCurrentOrganizationId();
 
         return creditBureauService
             .getLatest(
