@@ -23,13 +23,10 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     // GENERAL
     // ============================================================
 
-    /**
-     * Overrides JpaRepository's default findById to eagerly load the
-     * borrower — the loan detail endpoint serializes it, and with
-     * spring.jpa.open-in-view=false a lazy proxy would blow up Jackson
-     * outside the transaction ("no Session").
-     */
-    @EntityGraph(attributePaths = {"borrower"})
+    @EntityGraph(attributePaths = {
+            "borrower",
+            "organization"
+    })
     @Override
     Optional<Loan> findById(Long id);
 
@@ -40,10 +37,16 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
             String phoneHash
     );
 
-    @EntityGraph(attributePaths = {"borrower"})
+    @EntityGraph(attributePaths = {
+            "borrower",
+            "organization"
+    })
     List<Loan> findByOrganization_Id(Long organizationId);
 
-    @EntityGraph(attributePaths = {"borrower"})
+    @EntityGraph(attributePaths = {
+            "borrower",
+            "organization"
+    })
     List<Loan> findByBorrowerIdAndOrganizationId(
             Long borrowerId,
             Long organizationId
@@ -71,7 +74,10 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     // FILTERING
     // ============================================================
 
-    @EntityGraph(attributePaths = {"borrower"})
+    @EntityGraph(attributePaths = {
+            "borrower",
+            "organization"
+    })
     @Query("""
         SELECT l
         FROM Loan l
@@ -148,7 +154,10 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     // RECENT
     // ============================================================
 
-    @EntityGraph(attributePaths = {"borrower"})
+    @EntityGraph(attributePaths = {
+            "borrower",
+            "organization"
+    })
     @Query("""
         SELECT l
         FROM Loan l
@@ -161,19 +170,14 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     );
 
     // ============================================================
-    // REGULATORY:
-    // DISBURSEMENTS
+    // REGULATORY
     // ============================================================
 
-    /**
-     * Loans actually disbursed within the reporting period.
-     *
-     * Loan.disbursedAt is LocalDate, therefore LocalDate is used here.
-     *
-     * Period is inclusive:
-     *
-     * from <= disbursedAt <= to
-     */
+    @EntityGraph(attributePaths = {
+            "borrower",
+            "organization",
+            "branch"
+    })
     @Query("""
         SELECT l
         FROM Loan l
@@ -191,24 +195,9 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
             @Param("to") LocalDate to
     );
 
-    // ============================================================
-    // REGULATORY:
-    // PORTFOLIO AS OF DATE
-    // ============================================================
-
-    /**
-     * Loans disbursed on or before the reporting date.
-     *
-     * WARNING:
-     * This gives the correct population of loans existing by the
-     * reporting date, but current Loan.status and current
-     * daysOverdue values are still current-state values.
-     *
-     * For fully historical regulatory reporting, Loan needs a
-     * daily/monthly snapshot table.
-     */
     @EntityGraph(attributePaths = {
             "borrower",
+            "organization",
             "branch",
             "payments"
     })
@@ -227,12 +216,9 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
             @Param("asOf") LocalDate asOf
     );
 
-    // ============================================================
-    // OPERATIONAL REPORT
-    // ============================================================
-
     @EntityGraph(attributePaths = {
             "borrower",
+            "organization",
             "branch",
             "payments"
     })
@@ -251,10 +237,6 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to
     );
-
-    // ============================================================
-    // LOANS CREATED
-    // ============================================================
 
     @Query("""
         SELECT l

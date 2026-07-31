@@ -701,56 +701,27 @@ export const privacyApi = {
  */
 
 export const creditBureauApi = {
-  check: (
-    borrowerId: number,
-    organizationId: number,
-    requestedBy?: string
-  ) => {
-    const params = new URLSearchParams();
-
-    params.set(
-      'organizationId',
-      String(organizationId)
-    );
-
-    if (requestedBy) {
-      params.set(
-        'requestedBy',
-        requestedBy
-      );
-    }
-
-    return post(
-      `/credit-bureau/borrowers/${borrowerId}/check?${params.toString()}`
-    );
-  },
-
-  history: (
-    borrowerId: number,
-    organizationId: number
-  ) =>
-    get(
-      `/credit-bureau/borrowers/${borrowerId}/history?organizationId=${organizationId}`
+  check: (borrowerId: number) =>
+    post(
+      `/credit-bureau/borrowers/${borrowerId}/check`
     ),
 
-  latest: (
-    borrowerId: number,
-    organizationId: number
-  ) =>
+  history: (borrowerId: number) =>
     get(
-      `/credit-bureau/borrowers/${borrowerId}/latest?organizationId=${organizationId}`
+      `/credit-bureau/borrowers/${borrowerId}/history`
     ),
 
-  reportForLoan: (
-    loanId: number
-  ) =>
+  latest: (borrowerId: number) =>
+    get(
+      `/credit-bureau/borrowers/${borrowerId}/latest`
+    ),
+
+  reportForLoan: (loanId: number) =>
     get(
       `/credit-bureau/loans/${loanId}/report`
     ),
 
-  retryReport: (
-    loanId: number
-  ) =>
+  retryReport: (loanId: number) =>
     post(
       `/credit-bureau/loans/${loanId}/report/retry`
     ),

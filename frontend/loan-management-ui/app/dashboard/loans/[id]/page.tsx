@@ -616,12 +616,10 @@ export default function LoanDetailPage() {
 
       try {
 
-        const result =
-          await creditBureauApi.latest(
-            Number(loan.borrower.id),
-            Number(organizationId)
-          );
-
+       const result =
+  await creditBureauApi.latest(
+    loan.borrower.id
+  );
 
         if (result) {
 
@@ -716,19 +714,11 @@ export default function LoanDetailPage() {
      CREDIT BUREAU CHECK
   ======================================================= */
 
- const handleCreditBureauCheck = async () => {
+const handleCreditBureauCheck = async () => {
   if (!loan?.borrower?.id) {
     setMsg({
       type: 'error',
-      text: 'This loan has no linked borrower.',
-    });
-    return;
-  }
-
-  if (!loan?.organization?.id) {
-    setMsg({
-      type: 'error',
-      text: 'Organization information is missing from this loan.',
+      text: 'This loan has no borrower linked to it.',
     });
     return;
   }
@@ -737,30 +727,35 @@ export default function LoanDetailPage() {
   setMsg(null);
 
   try {
-    const result: any = await creditBureauApi.check(
-      loan.borrower.id,
-      loan.organization.id
-    );
+    const result: any =
+      await creditBureauApi.check(
+        loan.borrower.id
+      );
 
     const simulated =
       result?.provider === 'INTERNAL_SIMULATED';
 
-    setMsg({
-      type: simulated ? 'error' : 'success',
-      text: simulated
-        ? `⚠️ No live credit bureau connected — this is an internal estimate only. Score: ${
-            result?.creditScore ?? 'N/A'
-          }, Risk: ${
-            result?.riskGrade ?? 'N/A'
-          }.`
-        : `Credit bureau check complete via ${
-            result?.provider ?? 'provider'
-          } — score ${
-            result?.creditScore ?? 'N/A'
-          } (${
-            result?.riskGrade ?? 'N/A'
-          })`,
-    });
+    if (simulated) {
+      setMsg({
+        type: 'error',
+        text:
+          `⚠️ No live credit bureau connected — ` +
+          `this is an internal ESTIMATE ` +
+          `(score ${result?.creditScore ?? 'N/A'}, ` +
+          `${result?.riskGrade ?? 'N/A'}), ` +
+          `not a verified bureau report. ` +
+          `Do not treat this as confirmed credit history.`,
+      });
+    } else {
+      setMsg({
+        type: 'success',
+        text:
+          `Credit bureau check complete via ` +
+          `${result?.provider ?? 'credit bureau'} — ` +
+          `score ${result?.creditScore ?? 'N/A'} ` +
+          `(${result?.riskGrade ?? 'N/A'})`,
+      });
+    }
   } catch (err: any) {
     setMsg({
       type: 'error',

@@ -17,28 +17,15 @@ import java.util.Map;
 public class CreditBureauController {
 
     private final CreditBureauService creditBureauService;
-    private final CurrentUserUtil currentUserUtil;
 
     @PostMapping("/borrowers/{borrowerId}/check")
-    public ResponseEntity<?> runCheck(
-            @PathVariable Long borrowerId,
-            @RequestParam(required = false) String requestedBy
+    public ResponseEntity<?> check(
+            @PathVariable Long borrowerId
     ) {
-
-        Long organizationId = currentUserUtil.getCurrentOrganizationId();
-
-        CreditBureauCheck result =
-            creditBureauService.runCheck(
-                borrowerId,
-                organizationId,
-                requestedBy
-            );
-
         return ResponseEntity.ok(
-            Map.of(
-                "success", true,
-                "data", result
-            )
+                creditBureauService.checkBorrower(
+                        borrowerId
+                )
         );
     }
 
@@ -46,20 +33,10 @@ public class CreditBureauController {
     public ResponseEntity<?> history(
             @PathVariable Long borrowerId
     ) {
-
-        Long organizationId = currentUserUtil.getCurrentOrganizationId();
-
-        List<CreditBureauCheck> history =
-            creditBureauService.getHistory(
-                borrowerId,
-                organizationId
-            );
-
         return ResponseEntity.ok(
-            Map.of(
-                "success", true,
-                "data", history
-            )
+                creditBureauService.history(
+                        borrowerId
+                )
         );
     }
 
@@ -67,29 +44,32 @@ public class CreditBureauController {
     public ResponseEntity<?> latest(
             @PathVariable Long borrowerId
     ) {
-
-        Long organizationId = currentUserUtil.getCurrentOrganizationId();
-
-        return creditBureauService
-            .getLatest(
-                borrowerId,
-                organizationId
-            )
-            .map(check ->
-                ResponseEntity.ok(
-                    Map.of(
-                        "success", true,
-                        "data", check
-                    )
+        return ResponseEntity.ok(
+                creditBureauService.latest(
+                        borrowerId
                 )
-            )
-            .orElseGet(() ->
-                ResponseEntity.ok(
-                    Map.of(
-                        "success", true,
-                        "data", null
-                    )
+        );
+    }
+
+    @GetMapping("/loans/{loanId}/report")
+    public ResponseEntity<?> reportForLoan(
+            @PathVariable Long loanId
+    ) {
+        return ResponseEntity.ok(
+                creditBureauService.reportForLoan(
+                        loanId
                 )
-            );
+        );
+    }
+
+    @PostMapping("/loans/{loanId}/report/retry")
+    public ResponseEntity<?> retryReport(
+            @PathVariable Long loanId
+    ) {
+        return ResponseEntity.ok(
+                creditBureauService.retryReport(
+                        loanId
+                )
+        );
     }
 }
