@@ -1,3 +1,4 @@
+
 package com.patrick.fintech.loan_backend.security;
 
 import com.patrick.fintech.loan_backend.model.Organization;
@@ -20,9 +21,8 @@ import java.util.Optional;
 @Slf4j
 public class TenantResolutionFilter extends OncePerRequestFilter {
 
+    private static final String TENANT_KEY_HEADER = "X-Tenant-Key";
     private static final String TENANT_DOMAIN_HEADER = "X-Tenant-Domain";
-
-    private static final String ORIGIN_HEADER = "Origin";
 
     private final OrganizationRepository organizationRepository;
 
@@ -37,80 +37,43 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
 
         try {
 
-            String tenantDomain = request.getHeader(TENANT_DOMAIN_HEADER);
-            String origin = request.getHeader(ORIGIN_HEADER);
-            String host = request.getHeader("Host");
+            String tenantKey =
+                    normalize(request.getHeader(TENANT_KEY_HEADER));
+
+            String tenantDomain =
+                    normalize(request.getHeader(TENANT_DOMAIN_HEADER));
+
+            String origin =
+                    request.getHeader("Origin");
+
+            String originDomain =
+                    extractOriginDomain(origin);
+
+            String host =
+                    normalize(request.getHeader("Host"));
 
             log.info(
-                    "[TENANT] {} {} | TenantDomain={} | Origin={} | Host={}",
+                    "[TENANT] {} {} | TenantKey={} | TenantDomain={} | Origin={} | OriginDomain={} | Host={}",
                     request.getMethod(),
                     request.getRequestURI(),
+                    tenantKey,
                     tenantDomain,
                     origin,
+                    originDomain,
                     host
             );
 
             /*
              * ============================================================
-             * 1. EXPLICIT X-Tenant-Domain
+             * 1. TENANT KEY
              * ============================================================
-             *
-             * This is the preferred mechanism.
-             *
-             * Example:
-             *
-             * X-Tenant-Domain: growthfinance.rw
-             *
-             * The frontend should send the customer's actual domain here.
              */
-            if (tenantDomain != null && !tenantDomain.isBlank()) {
 
-                String normalizedDomain = normalizeDomain(tenantDomain);
-
-                if (normalizedDomain == null) {
-                    log.warn(
-                            "[TENANT] Invalid X-Tenant-Domain: {}",
-                            tenantDomain
-                    );
-
-                    sendInvalidTenant(response);
-                    return;
-                }
-
-                /*
-                 * Platform frontend domains are NOT tenants.
-                 *
-                 * These are your LoanSaaS client/platform frontends.
-                 */
-                if (isPlatformDomain(normalizedDomain)) {
-
-                    log.debug(
-                            "[TENANT] Platform frontend '{}' - no tenant resolution required",
-                            normalizedDomain
-                    );
-
-                    filterChain.doFilter(request, response);
-                    return;
-                }
-
-                /*
-                 * Backend infrastructure is NOT a tenant.
-                 */
-                if (isInfrastructureDomain(normalizedDomain)) {
-
-                    log.debug(
-                            "[TENANT] Infrastructure domain '{}' - skipping tenant resolution",
-                            normalizedDomain
-                    );
-
-                    filterChain.doFilter(request, response);
-                    return;
-                }
+            if (tenantKey != null) {
 
                 Optional<Organization> organization =
-                        organizationRepository.findByDomainIgnoreCase(
-                                normalizedDomain
-                        );
+                        organizationRepository
+                                .findByTenantKeyIgnoreCase(tenantKey);
 
                 if (organization.isPresent()) {
 
@@ -119,23 +82,19 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
                     TenantContext.set(org);
 
                     log.info(
-                            "[TENANT] Resolved organization '{}' (id={}) from X-Tenant-Domain='{}'",
+                            "[TENANT] Resolved '{}' (id={}) using tenant key '{}'",
                             org.getName(),
                             org.getId(),
-                            normalizedDomain
+                            tenantKey
                     );
 
                     filterChain.doFilter(request, response);
                     return;
                 }
 
-                /*
-                 * A non-platform domain was explicitly supplied but does
-                 * not exist in the organizations table.
-                 */
                 log.warn(
-                        "[TENANT] Unknown tenant domain: {}",
-                        normalizedDomain
+                        "[TENANT] Unknown tenant key: {}",
+                        tenantKey
                 );
 
                 sendUnknownTenant(response);
@@ -144,55 +103,15 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
 
             /*
              * ============================================================
-             * 2. RESOLVE FROM ORIGIN
+             * 2. EXPLICIT X-TENANT-DOMAIN
              * ============================================================
-             *
-             * Useful when the browser is accessing:
-             *
-             * https://growthfinance.rw
-             *
-             * and the frontend did not explicitly send X-Tenant-Domain.
              */
-            String originDomain = extractOriginDomain(origin);
 
-            if (originDomain != null) {
+            if (tenantDomain != null) {
 
-                /*
-                 * Platform frontends are clients/platform applications,
-                 * not tenants.
-                 */
-                if (isPlatformDomain(originDomain)) {
-
-                    log.debug(
-                            "[TENANT] Platform Origin '{}' - no tenant resolution required",
-                            originDomain
-                    );
-
-                    filterChain.doFilter(request, response);
-                    return;
-                }
-
-                /*
-                 * Backend/local infrastructure is not a tenant.
-                 */
-                if (isInfrastructureDomain(originDomain)) {
-
-                    log.debug(
-                            "[TENANT] Infrastructure Origin '{}' - no tenant resolution required",
-                            originDomain
-                    );
-
-                    filterChain.doFilter(request, response);
-                    return;
-                }
-
-                /*
-                 * Try to resolve the customer's domain.
-                 */
                 Optional<Organization> organization =
-                        organizationRepository.findByDomainIgnoreCase(
-                                originDomain
-                        );
+                        organizationRepository
+                                .findByDomainIgnoreCase(tenantDomain);
 
                 if (organization.isPresent()) {
 
@@ -201,7 +120,53 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
                     TenantContext.set(org);
 
                     log.info(
-                            "[TENANT] Resolved organization '{}' (id={}) from Origin='{}'",
+                            "[TENANT] Resolved '{}' (id={}) using X-Tenant-Domain '{}'",
+                            org.getName(),
+                            org.getId(),
+                            tenantDomain
+                    );
+
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                log.warn(
+                        "[TENANT] Unknown X-Tenant-Domain: {}",
+                        tenantDomain
+                );
+
+                sendUnknownTenant(response);
+                return;
+            }
+
+            /*
+             * ============================================================
+             * 3. ORIGIN
+             *
+             * This is important for your two Vercel tenant websites:
+             *
+             * fintech01-aydw.vercel.app
+             * nobleloan-fev7-one.vercel.app
+             *
+             * We DO NOT automatically reject *.vercel.app.
+             * Instead we check the Organization table.
+             * ============================================================
+             */
+
+            if (originDomain != null) {
+
+                Optional<Organization> organization =
+                        organizationRepository
+                                .findByDomainIgnoreCase(originDomain);
+
+                if (organization.isPresent()) {
+
+                    Organization org = organization.get();
+
+                    TenantContext.set(org);
+
+                    log.info(
+                            "[TENANT] Resolved '{}' (id={}) from Origin '{}'",
                             org.getName(),
                             org.getId(),
                             originDomain
@@ -212,33 +177,74 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
                 }
 
                 /*
-                 * Unknown Origin should not automatically break platform
-                 * endpoints. Tenant-aware services can enforce tenant
-                 * requirements where necessary.
+                 * If the origin is one of the platform/admin applications,
+                 * continue without a tenant.
                  */
-                log.debug(
-                        "[TENANT] No organization found for Origin '{}'",
+                if (isPlatformDomain(originDomain)) {
+
+                    log.debug(
+                            "[TENANT] Platform origin '{}'; no tenant required",
+                            originDomain
+                    );
+
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                log.warn(
+                        "[TENANT] Unknown tenant origin: {}",
                         originDomain
                 );
+
+                sendUnknownTenant(response);
+                return;
             }
 
             /*
              * ============================================================
-             * 3. NO TENANT
+             * 4. HOST FALLBACK
+             *
+             * Usually this will be fintech01.onrender.com because the
+             * frontend and backend are on different domains.
+             *
+             * We therefore don't use Host as the primary tenant source.
              * ============================================================
-             *
-             * This is allowed.
-             *
-             * Examples:
-             *
-             * /api/auth/login
-             * /api/public/tenant/growthfinance
-             * /actuator/health
-             * platform/admin endpoints
-             *
-             * Tenant-aware services/security should enforce tenant
-             * requirements where appropriate.
              */
+
+            if (host != null && !isPlatformDomain(host)) {
+
+                Optional<Organization> organization =
+                        organizationRepository
+                                .findByDomainIgnoreCase(host);
+
+                if (organization.isPresent()) {
+
+                    Organization org = organization.get();
+
+                    TenantContext.set(org);
+
+                    log.info(
+                            "[TENANT] Resolved '{}' (id={}) from Host '{}'",
+                            org.getName(),
+                            org.getId(),
+                            host
+                    );
+
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+            }
+
+            /*
+             * ============================================================
+             * 5. NO TENANT
+             *
+             * Allow platform/public endpoints that don't require a tenant.
+             * Authentication/authorization can enforce tenant requirements
+             * later where appropriate.
+             * ============================================================
+             */
+
             log.debug(
                     "[TENANT] No tenant resolved for {} {}",
                     request.getMethod(),
@@ -249,26 +255,12 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
 
         } finally {
 
-            /*
-             * IMPORTANT:
-             *
-             * TenantContext uses ThreadLocal, therefore it MUST always
-             * be cleared after the request.
-             */
             TenantContext.clear();
         }
     }
 
     /**
-     * Extract hostname from the browser Origin.
-     *
-     * Example:
-     *
-     * https://growthfinance.rw
-     *
-     * becomes:
-     *
-     * growthfinance.rw
+     * Extract hostname from Origin.
      */
     private String extractOriginDomain(String origin) {
 
@@ -280,7 +272,7 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
 
             URI uri = URI.create(origin.trim());
 
-            return normalizeDomain(uri.getHost());
+            return normalize(uri.getHost());
 
         } catch (Exception e) {
 
@@ -294,46 +286,29 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Normalize possible domain representations.
-     *
-     * Examples:
-     *
-     * https://growthfinance.rw
-     * http://growthfinance.rw/
-     * growthfinance.rw
-     * www.growthfinance.rw
-     * growthfinance.rw:443
-     *
-     * all become:
-     *
-     * growthfinance.rw
+     * Normalize domains and headers.
      */
-    private String normalizeDomain(String domain) {
+    private String normalize(String value) {
 
-        if (domain == null || domain.isBlank()) {
+        if (value == null || value.isBlank()) {
             return null;
         }
 
-        String result = domain.trim().toLowerCase();
+        String result =
+                value.trim().toLowerCase();
 
-        /*
-         * Full URL.
-         */
         if (result.startsWith("http://")
                 || result.startsWith("https://")) {
 
             try {
 
-                URI uri = URI.create(result);
+                URI uri =
+                        URI.create(result);
 
-                result = uri.getHost();
+                result =
+                        uri.getHost();
 
             } catch (Exception e) {
-
-                log.warn(
-                        "[TENANT] Invalid domain '{}'",
-                        domain
-                );
 
                 return null;
             }
@@ -346,98 +321,104 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
         /*
          * Remove port.
          */
-        int colonIndex = result.indexOf(':');
+        int colon =
+                result.indexOf(':');
 
-        if (colonIndex > -1) {
-            result = result.substring(0, colonIndex);
+        if (colon > -1) {
+
+            result =
+                    result.substring(0, colon);
         }
 
         /*
          * Remove www.
          */
         if (result.startsWith("www.")) {
-            result = result.substring(4);
+
+            result =
+                    result.substring(4);
         }
 
         /*
-         * Remove trailing dot.
+         * Remove trailing dots.
          */
         while (result.endsWith(".")) {
-            result = result.substring(0, result.length() - 1);
+
+            result =
+                    result.substring(
+                            0,
+                            result.length() - 1
+                    );
         }
 
         return result;
     }
 
     /**
-     * Your two Vercel applications are platform/client frontends.
+     * Domains belonging to the LoanSaaS infrastructure itself.
      *
-     * They are NOT organizations.
+     * IMPORTANT:
      *
-     * Therefore:
-     *
-     * fintech01-aydw.vercel.app
-     * nobleloan-fev7-one.vercel.app
-     *
-     * must never be looked up in organizations.domain.
+     * Tenant Vercel websites are NOT listed here.
      */
     private boolean isPlatformDomain(String domain) {
 
-        if (domain == null || domain.isBlank()) {
-            return false;
+        if (domain == null) {
+            return true;
         }
 
-        String normalized = domain.toLowerCase();
+        String normalized =
+                normalize(domain);
 
-        return normalized.equals("fintech01-aydw.vercel.app")
-                || normalized.equals("nobleloan-fev7-one.vercel.app");
-    }
-
-    /**
-     * Infrastructure domains belong to LoanSaaS itself.
-     *
-     * They are never tenants.
-     */
-    private boolean isInfrastructureDomain(String domain) {
-
-        if (domain == null || domain.isBlank()) {
-            return false;
+        if (normalized == null) {
+            return true;
         }
 
-        String normalized = domain.toLowerCase();
+        /*
+         * Backend
+         */
+        if (normalized.equals("fintech01.onrender.com")) {
+            return true;
+        }
 
-        return normalized.equals("fintech01.onrender.com")
-                || normalized.equals("localhost")
-                || normalized.equals("127.0.0.1");
+        /*
+         * Local development
+         */
+        if (normalized.equals("localhost")
+                || normalized.equals("127.0.0.1")) {
+            return true;
+        }
+
+        /*
+         * IMPORTANT:
+         *
+         * Do NOT put:
+         *
+         * fintech01-aydw.vercel.app
+         * nobleloan-fev7-one.vercel.app
+         *
+         * here.
+         *
+         * They are tenant domains.
+         */
+
+        return false;
     }
 
-    /**
-     * Invalid tenant header.
-     */
-    private void sendInvalidTenant(
-            HttpServletResponse response
-    ) throws IOException {
-
-        response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-        response.setContentType("application/json");
-
-        response.getWriter().write(
-                "{\"success\":false,\"error\":\"Invalid tenant domain.\"}"
-        );
-    }
-
-    /**
-     * Explicitly supplied unknown customer domain.
-     */
     private void sendUnknownTenant(
             HttpServletResponse response
     ) throws IOException {
 
-        response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-        response.setContentType("application/json");
+        response.setStatus(
+                HttpServletResponse.SC_BAD_REQUEST
+        );
+
+        response.setContentType(
+                "application/json"
+        );
 
         response.getWriter().write(
-                "{\"success\":false,\"error\":\"Unknown organization.\"}"
+                "{\"success\":false,\"error\":\"Invalid tenant. Please access your organization's official website.\"}"
         );
     }
 }

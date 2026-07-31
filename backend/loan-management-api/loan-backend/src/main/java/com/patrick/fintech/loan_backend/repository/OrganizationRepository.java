@@ -22,4 +22,6 @@ public interface OrganizationRepository
     boolean existsByDomainIgnoreCase(String domain);
 
     boolean existsByRegistrationNumber(String registrationNumber);
+
+    Optional<Organization> findByTenantKeyIgnoreCase(String tenantKey);
 }
