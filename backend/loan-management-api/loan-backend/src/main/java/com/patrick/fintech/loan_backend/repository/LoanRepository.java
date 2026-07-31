@@ -23,6 +23,16 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     // GENERAL
     // ============================================================
 
+    /**
+     * Overrides JpaRepository's default findById to eagerly load the
+     * borrower — the loan detail endpoint serializes it, and with
+     * spring.jpa.open-in-view=false a lazy proxy would blow up Jackson
+     * outside the transaction ("no Session").
+     */
+    @EntityGraph(attributePaths = {"borrower"})
+    @Override
+    Optional<Loan> findById(Long id);
+
     Optional<Loan> findByReferenceNumber(String referenceNumber);
 
     Optional<Loan> findByReferenceNumberAndBorrower_PhoneHash(
@@ -30,8 +40,10 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
             String phoneHash
     );
 
+    @EntityGraph(attributePaths = {"borrower"})
     List<Loan> findByOrganization_Id(Long organizationId);
 
+    @EntityGraph(attributePaths = {"borrower"})
     List<Loan> findByBorrowerIdAndOrganizationId(
             Long borrowerId,
             Long organizationId
@@ -59,6 +71,7 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     // FILTERING
     // ============================================================
 
+    @EntityGraph(attributePaths = {"borrower"})
     @Query("""
         SELECT l
         FROM Loan l
@@ -135,6 +148,7 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     // RECENT
     // ============================================================
 
+    @EntityGraph(attributePaths = {"borrower"})
     @Query("""
         SELECT l
         FROM Loan l
