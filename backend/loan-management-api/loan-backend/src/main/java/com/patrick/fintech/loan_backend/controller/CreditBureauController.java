@@ -2,7 +2,6 @@ package com.patrick.fintech.loan_backend.controller;
 
 import com.patrick.fintech.loan_backend.model.CreditBureauCheck;
 import com.patrick.fintech.loan_backend.service.CreditBureauService;
-import com.patrick.fintech.loan_backend.util.CurrentUserUtil;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
@@ -19,57 +18,73 @@ public class CreditBureauController {
     private final CreditBureauService creditBureauService;
 
     @PostMapping("/borrowers/{borrowerId}/check")
-    public ResponseEntity<?> check(
-            @PathVariable Long borrowerId
+    public ResponseEntity<?> runCheck(
+            @PathVariable Long borrowerId,
+            @RequestParam Long organizationId,
+            @RequestParam(required = false) String requestedBy
     ) {
+
+        CreditBureauCheck result =
+            creditBureauService.runCheck(
+                borrowerId,
+                organizationId,
+                requestedBy
+            );
+
         return ResponseEntity.ok(
-                creditBureauService.checkBorrower(
-                        borrowerId
-                )
+            Map.of(
+                "success", true,
+                "data", result
+            )
         );
     }
 
     @GetMapping("/borrowers/{borrowerId}/history")
     public ResponseEntity<?> history(
-            @PathVariable Long borrowerId
+            @PathVariable Long borrowerId,
+            @RequestParam Long organizationId
     ) {
+
+        List<CreditBureauCheck> history =
+            creditBureauService.getHistory(
+                borrowerId,
+                organizationId
+            );
+
         return ResponseEntity.ok(
-                creditBureauService.history(
-                        borrowerId
-                )
+            Map.of(
+                "success", true,
+                "data", history
+            )
         );
     }
 
     @GetMapping("/borrowers/{borrowerId}/latest")
     public ResponseEntity<?> latest(
-            @PathVariable Long borrowerId
+            @PathVariable Long borrowerId,
+            @RequestParam Long organizationId
     ) {
-        return ResponseEntity.ok(
-                creditBureauService.latest(
-                        borrowerId
-                )
-        );
-    }
 
-    @GetMapping("/loans/{loanId}/report")
-    public ResponseEntity<?> reportForLoan(
-            @PathVariable Long loanId
-    ) {
-        return ResponseEntity.ok(
-                creditBureauService.reportForLoan(
-                        loanId
+        return creditBureauService
+            .getLatest(
+                borrowerId,
+                organizationId
+            )
+            .map(check ->
+                ResponseEntity.ok(
+                    Map.of(
+                        "success", true,
+                        "data", check
+                    )
                 )
-        );
-    }
-
-    @PostMapping("/loans/{loanId}/report/retry")
-    public ResponseEntity<?> retryReport(
-            @PathVariable Long loanId
-    ) {
-        return ResponseEntity.ok(
-                creditBureauService.retryReport(
-                        loanId
+            )
+            .orElseGet(() ->
+                ResponseEntity.ok(
+                    Map.of(
+                        "success", true,
+                        "data", null
+                    )
                 )
-        );
+            );
     }
 }
