@@ -86,7 +86,6 @@ public class Loan {
     private Branch branch;
 
 
-   @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
         name = "borrower_id",
