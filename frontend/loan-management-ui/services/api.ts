@@ -698,137 +698,113 @@ export const privacyApi = {
  * =========================================================
  * CREDIT BUREAU
  * =========================================================
- *
- * IMPORTANT:
- * Backend CreditBureauController now requires:
- *
- *   ?organizationId={organizationId}
- *
- * on check/history/latest.
- */
-
-/**
- * =========================================================
- * CREDIT BUREAU
- * =========================================================
  */
 
 export const creditBureauApi = {
 
   /**
-   * Run a credit bureau check.
+   * Run a credit bureau check for a borrower.
    *
    * Backend:
    * POST /api/credit-bureau/borrowers/{borrowerId}/check
    *      ?organizationId={organizationId}
    *      &requestedBy={requestedBy}
    */
-  check:
-    (
-      borrowerId: number,
-      organizationId: number,
-      requestedBy?: string
-    ) => {
+  check: (
+    borrowerId: number,
+    organizationId: number,
+    requestedBy?: string
+  ) => {
 
-      const params = new URLSearchParams();
+    const params = new URLSearchParams();
 
+    params.set(
+      'organizationId',
+      String(organizationId)
+    );
+
+    if (requestedBy?.trim()) {
       params.set(
-        'organizationId',
-        String(organizationId)
+        'requestedBy',
+        requestedBy.trim()
       );
+    }
 
-      if (requestedBy?.trim()) {
-        params.set(
-          'requestedBy',
-          requestedBy.trim()
-        );
-      }
-
-      return post(
-        `/credit-bureau/borrowers/${borrowerId}/check?${params.toString()}`
-      );
-    },
+    return post(
+      `/credit-bureau/borrowers/${borrowerId}/check?${params.toString()}`
+    );
+  },
 
 
   /**
-   * Get credit bureau history for a borrower.
+   * Credit bureau check history.
    *
-   * Backend:
    * GET /api/credit-bureau/borrowers/{borrowerId}/history
    *     ?organizationId={organizationId}
    */
-  history:
-    (
-      borrowerId: number,
-      organizationId: number
-    ) => {
+  history: (
+    borrowerId: number,
+    organizationId: number
+  ) => {
 
-      const params = new URLSearchParams();
+    const params = new URLSearchParams();
 
-      params.set(
-        'organizationId',
-        String(organizationId)
-      );
+    params.set(
+      'organizationId',
+      String(organizationId)
+    );
 
-      return get(
-        `/credit-bureau/borrowers/${borrowerId}/history?${params.toString()}`
-      );
-    },
+    return get(
+      `/credit-bureau/borrowers/${borrowerId}/history?${params.toString()}`
+    );
+  },
 
 
   /**
-   * Get latest credit bureau check.
+   * Latest credit bureau check.
    *
-   * Backend:
    * GET /api/credit-bureau/borrowers/{borrowerId}/latest
    *     ?organizationId={organizationId}
    */
-  latest:
-    (
-      borrowerId: number,
-      organizationId: number
-    ) => {
+  latest: (
+    borrowerId: number,
+    organizationId: number
+  ) => {
 
-      const params = new URLSearchParams();
+    const params = new URLSearchParams();
 
-      params.set(
-        'organizationId',
-        String(organizationId)
-      );
+    params.set(
+      'organizationId',
+      String(organizationId)
+    );
 
-      return get(
-        `/credit-bureau/borrowers/${borrowerId}/latest?${params.toString()}`
-      );
-    },
+    return get(
+      `/credit-bureau/borrowers/${borrowerId}/latest?${params.toString()}`
+    );
+  },
 
 
   /**
-   * Get credit bureau report for a loan.
-   *
-   * Keep these if your backend implements them.
+   * Credit bureau report for a loan.
    */
-  reportForLoan:
-    (loanId: number) =>
-      get(
-        `/credit-bureau/loans/${loanId}/report`
-      ),
+  reportForLoan: (
+    loanId: number
+  ) =>
+    get(
+      `/credit-bureau/loans/${loanId}/report`
+    ),
 
 
   /**
    * Retry credit bureau report.
    */
-  retryReport:
-    (loanId: number) =>
-      post(
-        `/credit-bureau/loans/${loanId}/report/retry`
-      ),
+  retryReport: (
+    loanId: number
+  ) =>
+    post(
+      `/credit-bureau/loans/${loanId}/report/retry`
+    ),
 };
-
-/**
- * =========================================================
- * E-SIGNATURE
- * =========================================================
- */
 
 export const esignatureApi = {
   initiate:

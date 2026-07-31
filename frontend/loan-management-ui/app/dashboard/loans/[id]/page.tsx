@@ -114,7 +114,7 @@ import {
 
 
 /* =========================================================
-   TABS
+   TYPES
 ========================================================= */
 
 const TABS = [
@@ -129,8 +129,29 @@ const TABS = [
 type Tab = typeof TABS[number];
 
 
+type CreditBureauResult = {
+  id?: number;
+  provider?: string;
+  creditScore?: number;
+  riskGrade?: string;
+  status?: string;
+  checkedAt?: string;
+  message?: string;
+  [key: string]: unknown;
+};
+
+
+type OrganizationInfo = {
+  id?: number;
+  organizationId?: number;
+  name?: string;
+  domain?: string;
+  [key: string]: unknown;
+};
+
+
 /* =========================================================
-   FIELD COMPONENT
+   FIELD
 ========================================================= */
 
 function Field({
@@ -140,6 +161,7 @@ function Field({
   label: string;
   value?: React.ReactNode;
 }) {
+
   return (
     <div>
       <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
@@ -160,9 +182,8 @@ function Field({
 
 export default function LoanDetailPage() {
 
-  const {
-    id,
-  } = useParams<{ id: string }>();
+  const { id } =
+    useParams<{ id: string }>();
 
   const router =
     useRouter();
@@ -173,79 +194,32 @@ export default function LoanDetailPage() {
     isOfficer,
   } = useAuth();
 
-
-  /* =======================================================
-     HELPERS
-  ======================================================= */
-
-  const fc = (
-    n?: number
-  ) =>
-    formatCurrency(
-      n,
-      currency,
-      locale
-    );
-
-
-  const loanId =
-    Number(id);
+  const fc =
+    (n?: number) =>
+      formatCurrency(
+        n,
+        currency,
+        locale
+      );
 
 
   /* =======================================================
-     MAIN DATA
+     LOAN
   ======================================================= */
 
-  const [
-    loan,
-    setLoan,
-  ] =
+  const [loan, setLoan] =
     useState<Loan | null>(null);
 
-  const [
-    schedule,
-    setSchedule,
-  ] =
+  const [schedule, setSchedule] =
     useState<Payment[]>([]);
 
-  const [
-    loading,
-    setLoading,
-  ] =
+  const [loading, setLoading] =
     useState(true);
 
-
-  /* =======================================================
-     ORGANIZATION
-  ======================================================= */
-
-  const [
-    organizationId,
-    setOrganizationId,
-  ] =
-    useState<number | null>(null);
-
-  const [
-    organizationLoading,
-    setOrganizationLoading,
-  ] =
-    useState(true);
-
-
-  /* =======================================================
-     UI
-  ======================================================= */
-
-  const [
-    tab,
-    setTab,
-  ] =
+  const [tab, setTab] =
     useState<Tab>('Overview');
 
-  const [
-    msg,
-    setMsg,
-  ] =
+  const [msg, setMsg] =
     useState<{
       type: 'error' | 'success';
       text: string;
@@ -253,19 +227,65 @@ export default function LoanDetailPage() {
 
 
   /* =======================================================
+     ORGANIZATION
+  ======================================================= */
+
+  const [organization, setOrganization] =
+    useState<OrganizationInfo | null>(null);
+
+  const [organizationLoading, setOrganizationLoading] =
+    useState(true);
+
+
+  /**
+   * Resolve organization ID.
+   *
+   * Supports responses such as:
+   *
+   * { id: 1 }
+   *
+   * { organizationId: 1 }
+   *
+   * { data: { id: 1 } }
+   *
+   * because your API helper already unwraps `data`.
+   */
+  const organizationId =
+    organization?.id ??
+    organization?.organizationId ??
+    null;
+
+
+  /* =======================================================
+     CREDIT BUREAU
+  ======================================================= */
+
+  const [cbBusy, setCbBusy] =
+    useState(false);
+
+  const [creditBureauResult, setCreditBureauResult] =
+    useState<CreditBureauResult | null>(null);
+
+  const [creditBureauLoaded, setCreditBureauLoaded] =
+    useState(false);
+
+
+  /* =======================================================
+     E-SIGNATURE
+  ======================================================= */
+
+  const [esignBusy, setEsignBusy] =
+    useState(false);
+
+
+  /* =======================================================
      PAYMENT MODAL
   ======================================================= */
 
-  const [
-    payOpen,
-    setPayOpen,
-  ] =
+  const [payOpen, setPayOpen] =
     useState(false);
 
-  const [
-    payForm,
-    setPayForm,
-  ] =
+  const [payForm, setPayForm] =
     useState({
       amount: '',
       paymentMethod: 'BANK_TRANSFER',
@@ -274,10 +294,7 @@ export default function LoanDetailPage() {
       notes: '',
     });
 
-  const [
-    paying,
-    setPaying,
-  ] =
+  const [paying, setPaying] =
     useState(false);
 
 
@@ -285,16 +302,10 @@ export default function LoanDetailPage() {
      STATUS MODAL
   ======================================================= */
 
-  const [
-    stOpen,
-    setStOpen,
-  ] =
+  const [stOpen, setStOpen] =
     useState(false);
 
-  const [
-    stForm,
-    setStForm,
-  ] =
+  const [stForm, setStForm] =
     useState({
       status: '',
       rejectionReason: '',
@@ -302,32 +313,7 @@ export default function LoanDetailPage() {
       interestRate: '',
     });
 
-  const [
-    stSaving,
-    setStSaving,
-  ] =
-    useState(false);
-
-
-  /* =======================================================
-     CREDIT BUREAU
-  ======================================================= */
-
-  const [
-    cbBusy,
-    setCbBusy,
-  ] =
-    useState(false);
-
-
-  /* =======================================================
-     E-SIGNATURE
-  ======================================================= */
-
-  const [
-    esignBusy,
-    setEsignBusy,
-  ] =
+  const [stSaving, setStSaving] =
     useState(false);
 
 
@@ -335,28 +321,16 @@ export default function LoanDetailPage() {
      COMMENTS
   ======================================================= */
 
-  const [
-    comments,
-    setComments,
-  ] =
+  const [comments, setComments] =
     useState<any[]>([]);
 
-  const [
-    commentText,
-    setCommentText,
-  ] =
+  const [commentText, setCommentText] =
     useState('');
 
-  const [
-    commentVisible,
-    setCommentVisible,
-  ] =
+  const [commentVisible, setCommentVisible] =
     useState(true);
 
-  const [
-    commentSaving,
-    setCommentSaving,
-  ] =
+  const [commentSaving, setCommentSaving] =
     useState(false);
 
 
@@ -364,10 +338,7 @@ export default function LoanDetailPage() {
      DOCUMENT REQUIREMENTS
   ======================================================= */
 
-  const [
-    docReq,
-    setDocReq,
-  ] =
+  const [docReq, setDocReq] =
     useState<{
       required: string[];
       missing: string[];
@@ -391,78 +362,50 @@ export default function LoanDetailPage() {
 
   useEffect(() => {
 
-    let mounted = true;
+    let cancelled = false;
 
-    setOrganizationLoading(true);
+    const loadOrganization =
+      async () => {
 
-    orgApi.me()
-      .then((result: any) => {
+        setOrganizationLoading(true);
 
-        if (!mounted) {
-          return;
-        }
+        try {
 
-        /*
-         * Depending on your backend response,
-         * organization may be returned directly:
-         *
-         * {
-         *   id: 1,
-         *   name: "ABC"
-         * }
-         *
-         * or wrapped:
-         *
-         * {
-         *   organization: {
-         *     id: 1
-         *   }
-         * }
-         */
+          const result =
+            await orgApi.me();
 
-        const resolvedId =
-          result?.id ??
-          result?.organization?.id ??
-          result?.data?.id ??
-          result?.data?.organization?.id;
+          if (!cancelled) {
 
-        if (
-          resolvedId !== undefined &&
-          resolvedId !== null
-        ) {
+            setOrganization(
+              (result ?? null) as OrganizationInfo | null
+            );
+          }
 
-          setOrganizationId(
-            Number(resolvedId)
+        } catch (error) {
+
+          console.error(
+            'Failed to load organization:',
+            error
           );
 
-        } else {
+          if (!cancelled) {
+            setOrganization(null);
+          }
 
-          setOrganizationId(null);
+        } finally {
 
+          if (!cancelled) {
+            setOrganizationLoading(false);
+          }
         }
+      };
 
-      })
-      .catch(() => {
 
-        if (!mounted) {
-          return;
-        }
+    loadOrganization();
 
-        setOrganizationId(null);
-
-      })
-      .finally(() => {
-
-        if (!mounted) {
-          return;
-        }
-
-        setOrganizationLoading(false);
-
-      });
 
     return () => {
-      mounted = false;
+      cancelled = true;
     };
 
   }, []);
@@ -472,118 +415,110 @@ export default function LoanDetailPage() {
      LOAD LOAN
   ======================================================= */
 
-  const load = () => {
-
-    if (
-      !id ||
-      Number.isNaN(loanId)
-    ) {
-
-      setMsg({
-        type: 'error',
-        text: 'Invalid loan ID.',
-      });
-
-      setLoading(false);
-
-      return;
-    }
-
+  const load = async () => {
 
     setLoading(true);
 
+    try {
 
-    Promise.all([
-      loanApi.get(loanId),
-      loanApi.schedule(loanId),
-    ])
+      const [
+        loanResult,
+        scheduleResult,
+      ] =
+        await Promise.all([
+          loanApi.get(Number(id)),
+          loanApi.schedule(Number(id)),
+        ]);
 
-      .then(
-        ([
-          loadedLoan,
-          loadedSchedule,
-        ]: [any, any]) => {
+
+      const loadedLoan =
+        loanResult as Loan;
+
+      const loadedSchedule =
+        Array.isArray(scheduleResult)
+          ? scheduleResult as Payment[]
+          : [];
+
+
+      setLoan(
+        loadedLoan
+      );
+
+      setSchedule(
+        loadedSchedule
+      );
+
+
+      await cacheSet(
+        `/loans/${id}`,
+        {
+          loan: loadedLoan,
+          schedule: loadedSchedule,
+        }
+      );
+
+
+    } catch (e: any) {
+
+      try {
+
+        const cached =
+          await cacheGet<{
+            loan: Loan;
+            schedule: Payment[];
+          }>(
+            `/loans/${id}`
+          );
+
+
+        if (cached) {
 
           setLoan(
-            loadedLoan
+            cached.loan
           );
 
           setSchedule(
-            Array.isArray(
-              loadedSchedule
-            )
-              ? loadedSchedule
-              : []
+            cached.schedule
           );
 
+          setMsg({
+            type: 'error',
+            text:
+              "You're offline — showing the last saved version of this loan.",
+          });
 
-          cacheSet(
-            `/loans/${id}`,
-            {
-              loan: loadedLoan,
-              schedule: loadedSchedule,
-            }
-          );
+        } else {
 
+          setMsg({
+            type: 'error',
+            text:
+              e?.message ||
+              'Failed to load loan.',
+          });
         }
-      )
 
-      .catch(
-        async (e: any) => {
+      } catch {
 
-          const cached =
-            await cacheGet<{
-              loan: Loan;
-              schedule: Payment[];
-            }>(
-              `/loans/${id}`
-            );
+        setMsg({
+          type: 'error',
+          text:
+            e?.message ||
+            'Failed to load loan.',
+        });
+      }
 
+    } finally {
 
-          if (cached) {
-
-            setLoan(
-              cached.loan
-            );
-
-            setSchedule(
-              Array.isArray(
-                cached.schedule
-              )
-                ? cached.schedule
-                : []
-            );
-
-
-            setMsg({
-              type: 'error',
-              text:
-                "You're offline — showing the last saved version of this loan.",
-            });
-
-          } else {
-
-            setMsg({
-              type: 'error',
-              text:
-                e?.message ||
-                'Failed to load loan.',
-            });
-
-          }
-
-        }
-      )
-
-      .finally(() => {
-
-        setLoading(false);
-
-      });
+      setLoading(false);
+    }
   };
 
 
   useEffect(() => {
+
+    if (!id) {
+      return;
+    }
 
     load();
 
@@ -594,39 +529,32 @@ export default function LoanDetailPage() {
      DOCUMENT REQUIREMENTS
   ======================================================= */
 
-  const loadDocReq = () => {
+  const loadDocReq =
+    async () => {
 
-    if (
-      !id ||
-      Number.isNaN(loanId)
-    ) {
-      return;
-    }
+      try {
 
-    loanApi
-      .documentRequirements(
-        loanId
-      )
-
-      .then(
-        (result: any) => {
-
-          setDocReq(
-            result
+        const result =
+          await loanApi.documentRequirements(
+            Number(id)
           );
 
-        }
-      )
+        setDocReq(
+          result as any
+        );
 
-      .catch(() => {
+      } catch {
 
         setDocReq(null);
-
-      });
-  };
+      }
+    };
 
 
   useEffect(() => {
+
+    if (!id) {
+      return;
+    }
 
     loadDocReq();
 
@@ -637,42 +565,104 @@ export default function LoanDetailPage() {
      COMMENTS
   ======================================================= */
 
-  const loadComments = () => {
+  const loadComments =
+    async () => {
 
-    if (
-      !id ||
-      Number.isNaN(loanId)
-    ) {
-      return;
-    }
+      try {
 
-    loanApi
-      .getComments(
-        loanId
-      )
-
-      .then(
-        (result: any) => {
-
-          setComments(
-            Array.isArray(result)
-              ? result
-              : []
+        const result =
+          await loanApi.getComments(
+            Number(id)
           );
 
-        }
-      )
+        setComments(
+          Array.isArray(result)
+            ? result
+            : []
+        );
 
-      .catch(() => {});
+      } catch {
 
-  };
+        setComments([]);
+      }
+    };
 
 
   useEffect(() => {
 
+    if (!id) {
+      return;
+    }
+
     loadComments();
 
   }, [id]);
+
+
+  /* =======================================================
+     CREDIT BUREAU LATEST RESULT
+  ======================================================= */
+
+  const loadLatestCreditBureau =
+    async () => {
+
+      if (
+        !loan?.borrower?.id ||
+        !organizationId
+      ) {
+        return;
+      }
+
+
+      try {
+
+        const result =
+          await creditBureauApi.latest(
+            Number(loan.borrower.id),
+            Number(organizationId)
+          );
+
+
+        if (result) {
+
+          setCreditBureauResult(
+            result as CreditBureauResult
+          );
+
+        } else {
+
+          setCreditBureauResult(null);
+        }
+
+
+      } catch (error) {
+
+        console.error(
+          'Failed to load latest credit bureau check:',
+          error
+        );
+
+      } finally {
+
+        setCreditBureauLoaded(true);
+      }
+    };
+
+
+  useEffect(() => {
+
+    if (
+      loan?.borrower?.id &&
+      organizationId
+    ) {
+
+      loadLatestCreditBureau();
+    }
+
+  }, [
+    loan?.borrower?.id,
+    organizationId,
+  ]);
 
 
   /* =======================================================
@@ -689,15 +679,13 @@ export default function LoanDetailPage() {
       }
 
 
-      setCommentSaving(
-        true
-      );
+      setCommentSaving(true);
 
 
       try {
 
         await loanApi.addComment(
-          loanId,
+          Number(id),
           commentText.trim(),
           commentVisible
         );
@@ -707,9 +695,8 @@ export default function LoanDetailPage() {
 
         await loadComments();
 
-      }
 
-      catch (e: any) {
+      } catch (e: any) {
 
         setMsg({
           type: 'error',
@@ -718,21 +705,169 @@ export default function LoanDetailPage() {
             'Failed to add comment.',
         });
 
+      } finally {
+
+        setCommentSaving(false);
       }
-
-      finally {
-
-        setCommentSaving(
-          false
-        );
-
-      }
-
     };
 
 
   /* =======================================================
-     RECORD PAYMENT
+     CREDIT BUREAU CHECK
+  ======================================================= */
+
+  const handleCreditBureauCheck =
+    async () => {
+
+      const borrowerId =
+        loan?.borrower?.id;
+
+
+      if (!borrowerId) {
+
+        setMsg({
+          type: 'error',
+          text:
+            'This loan does not have a borrower linked to it.',
+        });
+
+        return;
+      }
+
+
+      if (!organizationId) {
+
+        setMsg({
+          type: 'error',
+          text:
+            'Organization information is not available yet. Please wait a moment and try again.',
+        });
+
+        return;
+      }
+
+
+      setCbBusy(true);
+
+      setMsg(null);
+
+
+      try {
+
+        const result =
+          await creditBureauApi.check(
+            Number(borrowerId),
+            Number(organizationId)
+          );
+
+
+        const bureauResult =
+          result as CreditBureauResult;
+
+
+        setCreditBureauResult(
+          bureauResult
+        );
+
+
+        const simulated =
+          bureauResult?.provider ===
+          'INTERNAL_SIMULATED';
+
+
+        if (simulated) {
+
+          setMsg({
+            type: 'error',
+            text:
+              `⚠️ No live credit bureau connected — this is an internal ESTIMATE (score ${
+                bureauResult?.creditScore ??
+                'N/A'
+              }, ${
+                bureauResult?.riskGrade ??
+                'N/A'
+              }), not a verified bureau report. Do not treat this as confirmed credit history.`,
+          });
+
+        } else {
+
+          setMsg({
+            type: 'success',
+            text:
+              `Credit bureau check complete via ${
+                bureauResult?.provider ??
+                'credit bureau'
+              } — score ${
+                bureauResult?.creditScore ??
+                'N/A'
+              } (${
+                bureauResult?.riskGrade ??
+                'N/A'
+              })`,
+          });
+        }
+
+
+      } catch (err: any) {
+
+        setMsg({
+          type: 'error',
+          text:
+            err?.message ||
+            'Credit bureau check failed.',
+        });
+
+      } finally {
+
+        setCbBusy(false);
+      }
+    };
+
+
+  /* =======================================================
+     E-SIGNATURE
+  ======================================================= */
+
+  const handleSendForSignature =
+    async () => {
+
+      setEsignBusy(true);
+
+      setMsg(null);
+
+
+      try {
+
+        await esignatureApi.initiate(
+          Number(id)
+        );
+
+
+        setMsg({
+          type: 'success',
+          text:
+            'Signing link + verification code sent to the borrower by SMS.',
+        });
+
+
+      } catch (err: any) {
+
+        setMsg({
+          type: 'error',
+          text:
+            err?.message ||
+            'Failed to initiate e-signature.',
+        });
+
+      } finally {
+
+        setEsignBusy(false);
+      }
+    };
+
+
+  /* =======================================================
+     PAYMENT
   ======================================================= */
 
   const handlePay =
@@ -760,11 +895,8 @@ export default function LoanDetailPage() {
 
             body: {
               ...payForm,
-
               amount:
-                Number(
-                  payForm.amount
-                ),
+                Number(payForm.amount),
             },
 
             label:
@@ -787,31 +919,21 @@ export default function LoanDetailPage() {
           });
 
 
-          setPayOpen(
-            false
-          );
+          setPayOpen(false);
 
-        }
 
-        catch (err: any) {
+        } catch (err: any) {
 
           setMsg({
             type: 'error',
             text:
               'Could not save offline: ' +
-              (
-                err?.message ||
-                'Unknown error'
-              ),
+              err.message,
           });
-
         }
 
-        finally {
 
-          setPaying(false);
-
-        }
+        setPaying(false);
 
         return;
       }
@@ -820,14 +942,11 @@ export default function LoanDetailPage() {
       try {
 
         await paymentApi.record(
-          loanId,
+          Number(id),
           {
             ...payForm,
-
             amount:
-              Number(
-                payForm.amount
-              ),
+              Number(payForm.amount),
           }
         );
 
@@ -839,37 +958,29 @@ export default function LoanDetailPage() {
         });
 
 
-        setPayOpen(
-          false
-        );
+        setPayOpen(false);
+
+        await load();
 
 
-        load();
-
-      }
-
-      catch (err: any) {
+      } catch (err: any) {
 
         setMsg({
           type: 'error',
           text:
             err?.message ||
-            'Failed to record payment.',
+            'Payment failed.',
         });
 
-      }
-
-      finally {
+      } finally {
 
         setPaying(false);
-
       }
-
     };
 
 
   /* =======================================================
-     STATUS UPDATE
+     STATUS
   ======================================================= */
 
   const handleStatus =
@@ -892,59 +1003,48 @@ export default function LoanDetailPage() {
         ) {
 
           await loanApi.approve(
-            loanId,
+            Number(id),
             stForm.internalNotes,
             stForm.interestRate
-              ? Number(
-                  stForm.interestRate
-                )
+              ? Number(stForm.interestRate)
               : undefined
           );
 
-        }
-
-        else if (
+        } else if (
           stForm.status ===
           'REJECTED'
         ) {
 
           await loanApi.reject(
-            loanId,
+            Number(id),
             stForm.rejectionReason
           );
 
-        }
-
-        else if (
+        } else if (
           stForm.status ===
           'DISBURSED'
         ) {
 
           await loanApi.disburse(
-            loanId,
+            Number(id),
             'BANK_TRANSFER'
           );
 
-        }
-
-        else if (
+        } else if (
           stForm.status
         ) {
 
           await loanApi.updateStatus(
-            loanId,
+            Number(id),
             stForm.status,
             stForm.internalNotes
           );
 
-        }
-
-        else {
+        } else {
 
           throw new Error(
             'Select a status first'
           );
-
         }
 
 
@@ -955,26 +1055,14 @@ export default function LoanDetailPage() {
         });
 
 
-        setStOpen(
-          false
-        );
+        setStOpen(false);
+
+        await load();
+
+        await loadDocReq();
 
 
-        setStForm({
-          status: '',
-          rejectionReason: '',
-          internalNotes: '',
-          interestRate: '',
-        });
-
-
-        load();
-
-        loadDocReq();
-
-      }
-
-      catch (err: any) {
+      } catch (err: any) {
 
         setMsg({
           type: 'error',
@@ -983,206 +1071,10 @@ export default function LoanDetailPage() {
             'Failed to update status.',
         });
 
-      }
-
-      finally {
+      } finally {
 
         setStSaving(false);
-
       }
-
-    };
-
-
-  /* =======================================================
-     CREDIT BUREAU CHECK
-  ======================================================= */
-
-  const handleCreditBureauCheck =
-    async () => {
-
-      /*
-       * Make sure the loan has a borrower.
-       */
-
-      if (
-        !loan?.borrower?.id
-      ) {
-
-        setMsg({
-          type: 'error',
-          text:
-            'This loan has no linked borrower.',
-        });
-
-        return;
-      }
-
-
-      /*
-       * IMPORTANT:
-       *
-       * Your Spring Boot controller requires:
-       *
-       * @RequestParam Long organizationId
-       *
-       * Therefore we MUST send organizationId.
-       */
-
-      if (
-        organizationId === null
-      ) {
-
-        setMsg({
-          type: 'error',
-          text:
-            'Organization could not be determined. Please refresh the page and try again.',
-        });
-
-        return;
-      }
-
-
-      setCbBusy(true);
-
-      setMsg(null);
-
-
-      try {
-
-        const result: any =
-          await creditBureauApi.check(
-            Number(
-              loan.borrower.id
-            ),
-
-            Number(
-              organizationId
-            )
-          );
-
-
-        /*
-         * Depending on your backend response,
-         * the result might be wrapped.
-         */
-
-        const bureauResult =
-          result?.data ??
-          result;
-
-
-        const simulated =
-          bureauResult?.provider ===
-          'INTERNAL_SIMULATED';
-
-
-        if (
-          simulated
-        ) {
-
-          setMsg({
-            type: 'error',
-
-            text:
-              `⚠️ No live credit bureau connected — this is an internal ESTIMATE (score ${
-                bureauResult?.creditScore ??
-                'N/A'
-              }, ${
-                bureauResult?.riskGrade ??
-                'N/A'
-              }), not a verified bureau report. Do not treat this as confirmed credit history.`,
-          });
-
-        }
-
-        else {
-
-          setMsg({
-            type: 'success',
-
-            text:
-              `Credit bureau check complete via ${
-                bureauResult?.provider ??
-                'credit bureau'
-              } — score ${
-                bureauResult?.creditScore ??
-                'N/A'
-              } (${
-                bureauResult?.riskGrade ??
-                'N/A'
-              })`,
-          });
-
-        }
-
-      }
-
-      catch (err: any) {
-
-        setMsg({
-          type: 'error',
-
-          text:
-            err?.message ||
-            'Credit bureau check failed.',
-        });
-
-      }
-
-      finally {
-
-        setCbBusy(false);
-
-      }
-
-    };
-
-
-  /* =======================================================
-     SEND FOR E-SIGNATURE
-  ======================================================= */
-
-  const handleSendForSignature =
-    async () => {
-
-      setEsignBusy(true);
-
-      setMsg(null);
-
-
-      try {
-
-        await esignatureApi.initiate(
-          loanId
-        );
-
-
-        setMsg({
-          type: 'success',
-          text:
-            'Signing link + verification code sent to the borrower by SMS.',
-        });
-
-      }
-
-      catch (err: any) {
-
-        setMsg({
-          type: 'error',
-          text:
-            err?.message ||
-            'Failed to send signature request.',
-        });
-
-      }
-
-      finally {
-
-        setEsignBusy(false);
-
-      }
-
     };
 
 
@@ -1190,58 +1082,34 @@ export default function LoanDetailPage() {
      LOADING
   ======================================================= */
 
-  if (
-    loading
-  ) {
+  if (loading) {
 
     return (
       <div className="flex items-center justify-center h-64">
 
-        <div
-          className="
-            w-8 h-8
-            border-2
-            border-teal-500
-            border-t-transparent
-            rounded-full
-            animate-spin
-          "
-        />
+        <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
 
       </div>
     );
-
   }
 
 
   /* =======================================================
-     LOAN NOT FOUND
+     NOT FOUND
   ======================================================= */
 
-  if (
-    !loan
-  ) {
+  if (!loan) {
 
     return (
-      <div
-        className="
-          bg-red-50
-          border
-          border-red-200
-          rounded-xl
-          p-6
-          text-red-700
-        "
-      >
+      <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">
         Loan not found
       </div>
     );
-
   }
 
 
   /* =======================================================
-     REPAYMENT PROGRESS
+     CALCULATIONS
   ======================================================= */
 
   const prog =
@@ -1253,16 +1121,11 @@ export default function LoanDetailPage() {
             (
               loan.totalPaid /
               loan.totalRepayable
-            ) *
-            100
+            ) * 100
           )
         )
       : 0;
 
-
-  /* =======================================================
-     CHART DATA
-  ======================================================= */
 
   const chartData =
     schedule
@@ -1288,10 +1151,6 @@ export default function LoanDetailPage() {
       );
 
 
-  /* =======================================================
-     PENALTIES
-  ======================================================= */
-
   const totalPenalty =
     schedule.reduce(
       (
@@ -1299,10 +1158,7 @@ export default function LoanDetailPage() {
         p
       ) =>
         sum +
-        (
-          p.penalty ??
-          0
-        ),
+        (p.penalty ?? 0),
       0
     );
 
@@ -1312,23 +1168,14 @@ export default function LoanDetailPage() {
   ======================================================= */
 
   return (
-
     <div>
 
-      {/* ===================================================
-          HEADER
-      =================================================== */}
 
-      <div
-        className="
-          flex
-          items-start
-          justify-between
-          mb-6
-          gap-4
-          flex-wrap
-        "
-      >
+      {/* =================================================
+          HEADER
+      ================================================= */}
+
+      <div className="flex items-start justify-between mb-6">
 
         <div>
 
@@ -1336,50 +1183,25 @@ export default function LoanDetailPage() {
             onClick={() =>
               router.back()
             }
-            className="
-              text-sm
-              text-gray-400
-              hover:text-gray-600
-              mb-2
-              flex
-              items-center
-              gap-1
-            "
+            className="text-sm text-gray-400 hover:text-gray-600 mb-2 flex items-center gap-1"
           >
             ← Back
           </button>
 
 
-          <h1
-            className="
-              text-2xl
-              font-extrabold
-              text-gray-900
-            "
-          >
+          <h1 className="text-2xl font-extrabold text-gray-900">
             {loan.referenceNumber}
           </h1>
 
 
-          <div
-            className="
-              flex
-              items-center
-              gap-2
-              mt-1
-              flex-wrap
-            "
-          >
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
 
             <StatusBadge
-              status={
-                loan.status
-              }
+              status={loan.status}
             />
 
 
             {loan.riskCategory && (
-
               <RiskBadge
                 category={
                   loan.riskCategory
@@ -1388,24 +1210,20 @@ export default function LoanDetailPage() {
                   loan.riskScore
                 }
               />
-
             )}
 
 
             <Pill
-              label={`
-                ${
-                  LOAN_TYPE_META[
-                    loan.loanType
-                  ]?.icon
-                }
-                ${
-                  LOAN_TYPE_META[
-                    loan.loanType
-                  ]?.label ??
+              label={`${
+                LOAN_TYPE_META[
                   loan.loanType
-                }
-              `}
+                ]?.icon
+              } ${
+                LOAN_TYPE_META[
+                  loan.loanType
+                ]?.label ??
+                loan.loanType
+              }`}
               color="blue"
             />
 
@@ -1419,117 +1237,99 @@ export default function LoanDetailPage() {
 
 
             {loan.daysOverdue &&
-              loan.daysOverdue > 0 && (
+            loan.daysOverdue > 0 ? (
 
-                <Pill
-                  label={
-                    <span
-                      className="
-                        inline-flex
-                        items-center
-                        gap-1
-                      "
-                    >
+              <Pill
+                label={
+                  <span className="inline-flex items-center gap-1">
 
-                      <IconAlertTriangle
-                        className="w-3 h-3"
-                      />
+                    <IconAlertTriangle className="w-3 h-3" />
 
-                      {loan.daysOverdue}
-                      d overdue
+                    {
+                      loan.daysOverdue
+                    }d overdue
 
-                    </span>
-                  }
-                  color="red"
-                />
+                  </span>
+                }
+                color="red"
+              />
 
-              )}
+            ) : null}
 
           </div>
 
         </div>
 
 
-        {/* =================================================
-            ACTION BUTTONS
-        ================================================= */}
+        <div className="flex gap-2 flex-wrap justify-end">
 
-        <div
-          className="
-            flex
-            gap-2
-            flex-wrap
-          "
-        >
 
-          {/* CREDIT BUREAU */}
+          {/* =================================================
+              CREDIT BUREAU BUTTON
+              
+              IMPORTANT:
+              No `isOfficer` condition here.
+              This makes the button visible whenever
+              a borrower is linked to the loan.
+          ================================================= */}
+
+          {loan.borrower?.id && (
+
+            <Button
+              variant="outline"
+              onClick={
+                handleCreditBureauCheck
+              }
+              disabled={
+                cbBusy ||
+                organizationLoading ||
+                !organizationId
+              }
+            >
+
+              <IconBank className="w-4 h-4" />
+
+              {cbBusy
+                ? 'Checking…'
+                : organizationLoading
+                  ? 'Loading…'
+                  : 'Credit Bureau Check'}
+
+            </Button>
+
+          )}
+
 
           {isOfficer &&
-            loan.borrower && (
+          (
+            loan.status ===
+              'APPROVED' ||
+            loan.status ===
+              'DISBURSED' ||
+            loan.status ===
+              'ACTIVE'
+          ) && (
 
-              <Button
-                variant="outline"
-                onClick={
-                  handleCreditBureauCheck
-                }
-                disabled={
-                  cbBusy ||
-                  organizationLoading ||
-                  organizationId === null
-                }
-              >
+            <Button
+              variant="outline"
+              onClick={
+                handleSendForSignature
+              }
+              disabled={
+                esignBusy
+              }
+            >
 
-                <IconBank
-                  className="w-4 h-4"
-                />
+              <IconSignature className="w-4 h-4" />
 
-                {cbBusy
-                  ? 'Checking…'
-                  : organizationLoading
-                    ? 'Loading…'
-                    : 'Credit Bureau Check'}
+              {esignBusy
+                ? 'Sending…'
+                : 'Send for E-Signature'}
 
-              </Button>
+            </Button>
 
-            )}
+          )}
 
-
-          {/* E-SIGNATURE */}
-
-          {isOfficer &&
-            (
-              loan.status ===
-                'APPROVED' ||
-              loan.status ===
-                'DISBURSED' ||
-              loan.status ===
-                'ACTIVE'
-            ) && (
-
-              <Button
-                variant="outline"
-                onClick={
-                  handleSendForSignature
-                }
-                disabled={
-                  esignBusy
-                }
-              >
-
-                <IconSignature
-                  className="w-4 h-4"
-                />
-
-                {esignBusy
-                  ? 'Sending…'
-                  : 'Send for E-Signature'}
-
-              </Button>
-
-            )}
-
-
-          {/* STATUS */}
 
           {isOfficer && (
 
@@ -1545,8 +1345,6 @@ export default function LoanDetailPage() {
           )}
 
 
-          {/* PAYMENT */}
-
           {loan.status ===
             'ACTIVE' && (
 
@@ -1558,34 +1356,27 @@ export default function LoanDetailPage() {
                     ...f,
 
                     amount:
-                      loan.totalRepayable
-                        ? String(
-                            Math.round(
+                      String(
+                        loan.totalRepayable
+                          ? Math.round(
                               (
                                 loan.totalRepayable /
-                                (
-                                  loan.durationMonths ||
-                                  1
-                                )
+                                loan.durationMonths!
                               ) *
                               100
-                            ) /
-                            100
-                          )
-                        : '',
+                            ) / 100
+                          : ''
+                      ),
                   })
                 );
 
                 setPayOpen(
                   true
                 );
-
               }}
             >
 
-              <IconCard
-                className="w-4 h-4"
-              />
+              <IconCard className="w-4 h-4" />
 
               Record Payment
 
@@ -1598,116 +1389,213 @@ export default function LoanDetailPage() {
       </div>
 
 
-      {/* ===================================================
+      {/* =================================================
           MESSAGE
-      =================================================== */}
+      ================================================= */}
 
       {msg && (
-
-        <Alert
-          type={
-            msg.type
-          }
-        >
-          {msg.text}
-        </Alert>
-
+        <div className="mb-5">
+          <Alert type={msg.type}>
+            {msg.text}
+          </Alert>
+        </div>
       )}
 
 
-      {/* ===================================================
-          HERO KPIs
-      =================================================== */}
+      {/* =================================================
+          CREDIT BUREAU STATUS CARD
+      ================================================= */}
 
-      <div
-        className="
-          grid
-          grid-cols-2
-          lg:grid-cols-5
-          gap-3
-          mb-5
-        "
-      >
+      {loan.borrower?.id && (
+        <Card className="mb-5">
+
+          <CardHeader
+            title="Credit Bureau"
+          />
+
+          <CardBody>
+
+            {!organizationId && (
+              <div className="text-sm text-gray-500">
+                Loading organization information…
+              </div>
+            )}
+
+
+            {organizationId &&
+            !creditBureauResult &&
+            !cbBusy && (
+
+              <div className="flex items-center justify-between gap-4">
+
+                <div>
+
+                  <div className="font-semibold text-gray-800">
+                    No credit bureau check available
+                  </div>
+
+                  <div className="text-xs text-gray-500 mt-1">
+                    Run a check to retrieve the latest borrower credit information.
+                  </div>
+
+                </div>
+
+
+                <Button
+                  variant="outline"
+                  onClick={
+                    handleCreditBureauCheck
+                  }
+                  disabled={
+                    cbBusy
+                  }
+                >
+
+                  <IconBank className="w-4 h-4" />
+
+                  Run Check
+
+                </Button>
+
+              </div>
+
+            )}
+
+
+            {cbBusy && (
+
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+
+                <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+
+                Running credit bureau check…
+
+              </div>
+
+            )}
+
+
+            {creditBureauResult &&
+            !cbBusy && (
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+                <div>
+
+                  <div className="text-xs text-gray-400 uppercase font-bold">
+                    Provider
+                  </div>
+
+                  <div className="font-semibold text-gray-800 mt-1">
+                    {
+                      creditBureauResult.provider ??
+                      '—'
+                    }
+                  </div>
+
+                </div>
+
+
+                <div>
+
+                  <div className="text-xs text-gray-400 uppercase font-bold">
+                    Credit Score
+                  </div>
+
+                  <div className="text-2xl font-extrabold text-teal-600 mt-1">
+                    {
+                      creditBureauResult.creditScore ??
+                      '—'
+                    }
+                  </div>
+
+                </div>
+
+
+                <div>
+
+                  <div className="text-xs text-gray-400 uppercase font-bold">
+                    Risk Grade
+                  </div>
+
+                  <div className="font-semibold text-gray-800 mt-1">
+                    {
+                      creditBureauResult.riskGrade ??
+                      '—'
+                    }
+                  </div>
+
+                </div>
+
+
+                <div>
+
+                  <div className="text-xs text-gray-400 uppercase font-bold">
+                    Status
+                  </div>
+
+                  <div className="font-semibold text-gray-800 mt-1">
+                    {
+                      creditBureauResult.status ??
+                      'COMPLETED'
+                    }
+                  </div>
+
+                </div>
+
+              </div>
+
+            )}
+
+          </CardBody>
+
+        </Card>
+      )}
+
+
+      {/* =================================================
+          HERO KPIs
+      ================================================= */}
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
 
         {[
           {
-            label:
-              'Principal',
-
-            value:
-              fc(
-                loan.amount
-              ),
-
-            Icon:
-              IconCoins,
-
-            color:
-              '#3B82F6',
+            label: 'Principal',
+            value: fc(loan.amount),
+            Icon: IconCoins,
           },
 
           {
-            label:
-              'Disbursed',
-
-            value:
-              fc(
-                loan.disbursedAmount
-              ),
-
-            Icon:
-              IconSend,
-
-            color:
-              '#8B5CF6',
+            label: 'Disbursed',
+            value: fc(
+              loan.disbursedAmount
+            ),
+            Icon: IconSend,
           },
 
           {
-            label:
-              'Total Paid',
-
-            value:
-              fc(
-                loan.totalPaid
-              ),
-
-            Icon:
-              IconCheckCircle,
-
-            color:
-              '#0D9488',
+            label: 'Total Paid',
+            value: fc(
+              loan.totalPaid
+            ),
+            Icon: IconCheckCircle,
           },
 
           {
-            label:
-              'Outstanding',
-
-            value:
-              fc(
-                loan.outstandingBalance
-              ),
-
-            Icon:
-              IconClock,
-
-            color:
-              '#F59E0B',
+            label: 'Outstanding',
+            value: fc(
+              loan.outstandingBalance
+            ),
+            Icon: IconClock,
           },
 
           {
-            label:
-              'Penalty',
-
-            value:
-              fc(
-                totalPenalty
-              ),
-
-            Icon:
-              IconFileText,
-
-            color:
-              '#6B7280',
+            label: 'Penalty',
+            value: fc(
+              totalPenalty
+            ),
+            Icon: IconFileText,
           },
 
         ].map(
@@ -1715,48 +1603,22 @@ export default function LoanDetailPage() {
             label,
             value,
             Icon,
-            color,
           }) => (
 
             <div
               key={label}
-              className="
-                bg-white
-                rounded-xl
-                border
-                border-gray-200
-                p-4
-              "
+              className="bg-white rounded-xl border border-gray-200 p-4"
             >
 
               <Icon
-                className="w-5 h-5 mb-1.5"
-                style={{
-                  color,
-                }}
+                className="w-5 h-5 mb-1.5 text-teal-600"
               />
 
-              <div
-                className="
-                  text-[10px]
-                  font-bold
-                  text-gray-400
-                  uppercase
-                  tracking-wider
-                "
-              >
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                 {label}
               </div>
 
-              <div
-                className="
-                  text-lg
-                  font-extrabold
-                  text-gray-900
-                  font-mono
-                  mt-0.5
-                "
-              >
+              <div className="text-lg font-extrabold text-gray-900 font-mono mt-0.5">
                 {value}
               </div>
 
@@ -1768,63 +1630,31 @@ export default function LoanDetailPage() {
       </div>
 
 
-      {/* ===================================================
-          REPAYMENT PROGRESS
-      =================================================== */}
+      {/* =================================================
+          PROGRESS
+      ================================================= */}
 
       <Card className="mb-5">
 
         <CardBody>
 
-          <div
-            className="
-              flex
-              items-center
-              justify-between
-              mb-2
-            "
-          >
+          <div className="flex items-center justify-between mb-2">
 
-            <span
-              className="
-                text-sm
-                font-semibold
-                text-gray-700
-              "
-            >
+            <span className="text-sm font-semibold text-gray-700">
               Repayment Progress
             </span>
 
-            <span
-              className="
-                text-lg
-                font-extrabold
-                text-teal-600
-              "
-            >
+            <span className="text-lg font-extrabold text-teal-600">
               {prog}%
             </span>
 
           </div>
 
 
-          <div
-            className="
-              w-full
-              bg-gray-100
-              rounded-full
-              h-3
-              overflow-hidden
-            "
-          >
+          <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
 
             <div
-              className="
-                h-3
-                rounded-full
-                transition-all
-                duration-500
-              "
+              className="h-3 rounded-full transition-all duration-500"
               style={{
                 width:
                   `${prog}%`,
@@ -1841,15 +1671,7 @@ export default function LoanDetailPage() {
           </div>
 
 
-          <div
-            className="
-              flex
-              justify-between
-              text-xs
-              text-gray-400
-              mt-1.5
-            "
-          >
+          <div className="flex justify-between text-xs text-gray-400 mt-1.5">
 
             <span>
               {fc(
@@ -1878,26 +1700,9 @@ export default function LoanDetailPage() {
           {loan.status ===
             'PAID' && (
 
-            <div
-              className="
-                mt-2
-                bg-teal-50
-                border
-                border-teal-200
-                text-teal-700
-                text-xs
-                rounded-lg
-                px-3
-                py-2
-                flex
-                items-center
-                gap-1.5
-              "
-            >
+            <div className="mt-2 bg-teal-50 border border-teal-200 text-teal-700 text-xs rounded-lg px-3 py-2 flex items-center gap-1.5">
 
-              <IconCheckCircle
-                className="w-4 h-4"
-              />
+              <IconCheckCircle className="w-4 h-4" />
 
               Loan fully repaid
 
@@ -1910,67 +1715,47 @@ export default function LoanDetailPage() {
       </Card>
 
 
-      {/* ===================================================
+      {/* =================================================
           DOCUMENT REQUIREMENTS
-      =================================================== */}
+      ================================================= */}
 
       {docReq &&
-        (
-          docReq.missing.length > 0 ||
-          docReq.unverified.length > 0
-        ) && (
+      (
+        docReq.missing.length >
+          0 ||
+        docReq.unverified.length >
+          0
+      ) && (
 
-        <div
-          className="
-            bg-amber-50
-            border
-            border-amber-200
-            rounded-xl
-            px-4
-            py-3
-            mb-5
-            text-sm
-          "
-        >
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5 text-sm">
 
-          <div
-            className="
-              font-bold
-              text-amber-800
-              mb-1
-              flex
-              items-center
-              gap-1.5
-            "
-          >
+          <div className="font-bold text-amber-800 mb-1 flex items-center gap-1.5">
 
-            <IconAlertTriangle
-              className="w-4 h-4"
-            />
+            <IconAlertTriangle className="w-4 h-4" />
 
             Required documents not yet in order
 
           </div>
 
 
-          {docReq.missing.length > 0 && (
+          {docReq.missing.length >
+            0 && (
 
-            <div
-              className="
-                text-amber-700
-              "
-            >
+            <div className="text-amber-700">
 
-              Not uploaded
-              {' '}
-              (blocks <strong>Approve</strong>):
+              Not uploaded (blocks{' '}
 
-              {' '}
+              <strong>
+                Approve
+              </strong>
+              ):{' '}
 
               {docReq.missing
                 .map(
                   t =>
-                    DOCUMENT_TYPE_LABELS[t] ??
+                    DOCUMENT_TYPE_LABELS[
+                      t
+                    ] ??
                     t
                 )
                 .join(', ')}
@@ -1980,25 +1765,26 @@ export default function LoanDetailPage() {
           )}
 
 
-          {docReq.missing.length === 0 &&
-            docReq.unverified.length > 0 && (
+          {docReq.missing.length ===
+            0 &&
+          docReq.unverified.length >
+            0 && (
 
-            <div
-              className="
-                text-amber-700
-              "
-            >
+            <div className="text-amber-700">
 
-              Uploaded but not yet staff-verified
-              {' '}
-              (blocks <strong>Disburse</strong>):
+              Uploaded but not yet staff-verified (blocks{' '}
 
-              {' '}
+              <strong>
+                Disburse
+              </strong>
+              ):{' '}
 
               {docReq.unverified
                 .map(
                   t =>
-                    DOCUMENT_TYPE_LABELS[t] ??
+                    DOCUMENT_TYPE_LABELS[
+                      t
+                    ] ??
                     t
                 )
                 .join(', ')}
@@ -2012,13 +1798,7 @@ export default function LoanDetailPage() {
             onClick={() =>
               setTab('Documents')
             }
-            className="
-              text-xs
-              font-bold
-              text-amber-800
-              underline
-              mt-1
-            "
+            className="text-xs font-bold text-amber-800 underline mt-1"
           >
             Go to Documents →
           </button>
@@ -2028,20 +1808,11 @@ export default function LoanDetailPage() {
       )}
 
 
-      {/* ===================================================
+      {/* =================================================
           TABS
-      =================================================== */}
+      ================================================= */}
 
-      <div
-        className="
-          flex
-          border-b
-          border-gray-200
-          mb-5
-          gap-0
-          overflow-x-auto
-        "
-      >
+      <div className="flex border-b border-gray-200 mb-5 gap-0 overflow-x-auto">
 
         {TABS.map(
           t => (
@@ -2052,15 +1823,12 @@ export default function LoanDetailPage() {
                 setTab(t)
               }
               className={`
-                px-5
-                py-2.5
-                text-sm
-                font-semibold
+                px-5 py-2.5
+                text-sm font-semibold
                 border-b-2
                 transition-colors
                 -mb-px
                 whitespace-nowrap
-
                 ${
                   tab === t
                     ? 'border-teal-500 text-teal-600'
@@ -2077,9 +1845,9 @@ export default function LoanDetailPage() {
       </div>
 
 
-      {/* ===================================================
+      {/* =================================================
           OVERVIEW
-      =================================================== */}
+      ================================================= */}
 
       {tab ===
         'Overview' && (
@@ -2092,31 +1860,21 @@ export default function LoanDetailPage() {
 
           <CardBody>
 
-            <div
-              className="
-                grid
-                grid-cols-2
-                lg:grid-cols-4
-                gap-x-6
-                gap-y-5
-              "
-            >
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5">
 
               <Field
                 label="Loan Type"
-                value={`
-                  ${
+                value={
+                  `${
                     LOAN_TYPE_META[
                       loan.loanType
                     ]?.icon
-                  }
-                  ${
+                  } ${
                     LOAN_TYPE_META[
                       loan.loanType
-                    ]?.label ??
-                    loan.loanType
-                  }
-                `}
+                    ]?.label
+                  }`
+                }
               />
 
               <Field
@@ -2166,42 +1924,34 @@ export default function LoanDetailPage() {
 
               <Field
                 label="Start Date"
-                value={
-                  formatDate(
-                    loan.startDate,
-                    locale
-                  )
-                }
+                value={formatDate(
+                  loan.startDate,
+                  locale
+                )}
               />
 
               <Field
                 label="Approved"
-                value={
-                  formatDate(
-                    loan.approvedAt,
-                    locale
-                  )
-                }
+                value={formatDate(
+                  loan.approvedAt,
+                  locale
+                )}
               />
 
               <Field
                 label="Disbursed"
-                value={
-                  formatDate(
-                    loan.disbursedAt,
-                    locale
-                  )
-                }
+                value={formatDate(
+                  loan.disbursedAt,
+                  locale
+                )}
               />
 
               <Field
                 label="Maturity"
-                value={
-                  formatDate(
-                    loan.maturityDate,
-                    locale
-                  )
-                }
+                value={formatDate(
+                  loan.maturityDate,
+                  locale
+                )}
               />
 
               <Field
@@ -2222,11 +1972,9 @@ export default function LoanDetailPage() {
 
               <Field
                 label="Collateral Value"
-                value={
-                  fc(
-                    loan.collateralValue
-                  )
-                }
+                value={fc(
+                  loan.collateralValue
+                )}
               />
 
               <Field
@@ -2245,13 +1993,7 @@ export default function LoanDetailPage() {
             ) && (
 
               <>
-
-                <hr
-                  className="
-                    my-4
-                    border-gray-100
-                  "
-                />
+                <hr className="my-4 border-gray-100" />
 
                 {loan.rejectionReason && (
 
@@ -2282,42 +2024,24 @@ export default function LoanDetailPage() {
                 )}
 
               </>
-
             )}
 
 
-            <hr
-              className="
-                my-4
-                border-gray-100
-              "
-            />
+            <hr className="my-4 border-gray-100" />
 
 
-            <div
-              className="
-                flex
-                gap-3
-                flex-wrap
-                text-xs
-                text-gray-500
-              "
-            >
+            <div className="flex gap-3 flex-wrap text-xs text-gray-500">
 
               {loan.loanOfficer && (
 
-                <span
-                  className="
-                    bg-gray-100
-                    px-3
-                    py-1.5
-                    rounded-lg
-                  "
-                >
+                <span className="bg-gray-100 px-3 py-1.5 rounded-lg">
+
                   👤 Officer:{' '}
+
                   <strong>
                     {loan.loanOfficer.name}
                   </strong>
+
                 </span>
 
               )}
@@ -2325,25 +2049,9 @@ export default function LoanDetailPage() {
 
               {loan.approvedBy && (
 
-                <span
-                  className="
-                    bg-gray-100
-                    px-3
-                    py-1.5
-                    rounded-lg
-                    inline-flex
-                    items-center
-                    gap-1.5
-                  "
-                >
+                <span className="bg-gray-100 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">
 
-                  <IconCheckCircle
-                    className="
-                      w-3.5
-                      h-3.5
-                      text-teal-600
-                    "
-                  />
+                  <IconCheckCircle className="w-3.5 h-3.5 text-teal-600" />
 
                   Approved by:{' '}
 
@@ -2364,334 +2072,414 @@ export default function LoanDetailPage() {
       )}
 
 
-      {/* ===================================================
+      {/* =================================================
           BORROWER
-      =================================================== */}
+      ================================================= */}
 
       {tab ===
         'Borrower' &&
-        loan.borrower && (
+      loan.borrower && (
 
-        <Card>
-
-          <CardHeader
-            title="Borrower Profile"
-          />
-
-          <CardBody>
-
-            <div
-              className="
-                flex
-                items-center
-                gap-4
-                mb-5
-              "
-            >
-
-              <div
-                className="
-                  w-14
-                  h-14
-                  bg-teal-100
-                  rounded-full
-                  flex
-                  items-center
-                  justify-center
-                  text-2xl
-                  font-bold
-                  text-teal-700
-                "
-              >
-
-                {loan.borrower.firstName?.[0]}
-
-                {loan.borrower.lastName?.[0]}
-
-              </div>
+        <div className="space-y-5">
 
 
-              <div>
+          <Card>
 
-                <div
-                  className="
-                    font-bold
-                    text-lg
-                    text-gray-900
-                  "
-                >
-                  {loan.borrower.firstName}{' '}
-                  {loan.borrower.lastName}
+            <CardHeader
+              title="Borrower Profile"
+            />
+
+            <CardBody>
+
+              <div className="flex items-center gap-4 mb-5">
+
+                <div className="w-14 h-14 bg-teal-100 rounded-full flex items-center justify-center text-2xl font-bold text-teal-700">
+
+                  {
+                    loan.borrower.firstName?.[0]
+                  }
+
+                  {
+                    loan.borrower.lastName?.[0]
+                  }
+
                 </div>
 
-                <div
-                  className="
-                    text-sm
-                    text-gray-500
-                  "
-                >
-                  {loan.borrower.email}
-                  {' · '}
-                  {loan.borrower.phone}
-                </div>
-
-              </div>
-
-
-              <div
-                className="
-                  ml-auto
-                  flex
-                  items-center
-                  gap-6
-                "
-              >
 
                 <div>
 
-                  <div
-                    className="
-                      text-xs
-                      text-gray-400
-                      mb-0.5
-                    "
-                  >
-                    Credit Score
+                  <div className="font-bold text-lg text-gray-900">
+
+                    {
+                      loan.borrower.firstName
+                    }{' '}
+
+                    {
+                      loan.borrower.lastName
+                    }
+
                   </div>
 
-                  <div
-                    className={`
-                      text-2xl
-                      font-extrabold
+                  <div className="text-sm text-gray-500">
 
-                      ${
-                        (
-                          loan.borrower.creditScore ??
-                          0
-                        ) >= 700
-                          ? 'text-teal-600'
-                          : 'text-orange-500'
-                      }
-                    `}
-                  >
-                    {loan.borrower.creditScore ??
-                      '—'}
+                    {
+                      loan.borrower.email
+                    }{' '}
+
+                    ·{' '}
+
+                    {
+                      loan.borrower.phone
+                    }
+
                   </div>
 
                 </div>
 
 
-                <button
-                  onClick={() =>
-                    setTab(
-                      'Documents'
-                    )
-                  }
-                  className="
-                    text-xs
-                    font-bold
-                    px-3
-                    py-2
-                    rounded-lg
-                    border
-                    border-teal-200
-                    bg-teal-50
-                    text-teal-700
-                    hover:bg-teal-100
-                    transition
-                    whitespace-nowrap
-                  "
-                >
-                  View KYC Documents →
-                </button>
+                <div className="ml-auto flex items-center gap-6">
+
+                  <div>
+
+                    <div className="text-xs text-gray-400 mb-0.5">
+                      Credit Score
+                    </div>
+
+                    <div
+                      className={`
+                        text-2xl
+                        font-extrabold
+                        ${
+                          (
+                            loan.borrower.creditScore ??
+                            0
+                          ) >= 700
+                            ? 'text-teal-600'
+                            : 'text-orange-500'
+                        }
+                      `}
+                    >
+
+                      {
+                        loan.borrower.creditScore ??
+                        '—'
+                      }
+
+                    </div>
+
+                  </div>
+
+
+                  <button
+                    onClick={() =>
+                      setTab('Documents')
+                    }
+                    className="text-xs font-bold px-3 py-2 rounded-lg border border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 transition whitespace-nowrap"
+                  >
+                    View KYC Documents →
+                  </button>
+
+                </div>
 
               </div>
 
-            </div>
 
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
 
-            <div
-              className="
-                grid
-                grid-cols-2
-                lg:grid-cols-4
-                gap-x-6
-                gap-y-4
-              "
-            >
+                <Field
+                  label="National ID"
+                  value={
+                    loan.borrower.nationalId
+                  }
+                />
 
-              <Field
-                label="National ID"
-                value={
-                  loan.borrower.nationalId
-                }
-              />
+                <Field
+                  label="Nationality"
+                  value={
+                    loan.borrower.nationality
+                  }
+                />
 
-              <Field
-                label="Nationality"
-                value={
-                  loan.borrower.nationality
-                }
-              />
-
-              <Field
-                label="Date of Birth"
-                value={
-                  formatDate(
+                <Field
+                  label="Date of Birth"
+                  value={formatDate(
                     loan.borrower.dateOfBirth,
                     locale
-                  )
-                }
-              />
+                  )}
+                />
 
-              <Field
-                label="Gender"
-                value={
-                  loan.borrower.gender
-                }
-              />
+                <Field
+                  label="Gender"
+                  value={
+                    loan.borrower.gender
+                  }
+                />
 
-              <Field
-                label="Employer"
-                value={
-                  loan.borrower.employerName
-                }
-              />
+                <Field
+                  label="Employer"
+                  value={
+                    loan.borrower.employerName
+                  }
+                />
 
-              <Field
-                label="Job Title"
-                value={
-                  loan.borrower.jobTitle
-                }
-              />
+                <Field
+                  label="Job Title"
+                  value={
+                    loan.borrower.jobTitle
+                  }
+                />
 
-              <Field
-                label="Employment Type"
-                value={
-                  loan.borrower.employmentType
-                }
-              />
+                <Field
+                  label="Employment Type"
+                  value={
+                    loan.borrower.employmentType
+                  }
+                />
 
-              <Field
-                label="Monthly Income"
-                value={
-                  fc(
+                <Field
+                  label="Monthly Income"
+                  value={fc(
                     loan.borrower.monthlyIncome
-                  )
-                }
-              />
+                  )}
+                />
 
-              <Field
-                label="Monthly Expenses"
-                value={
-                  fc(
+                <Field
+                  label="Monthly Expenses"
+                  value={fc(
                     loan.borrower.monthlyExpenses
-                  )
-                }
-              />
+                  )}
+                />
 
-              <Field
-                label="Net Worth"
-                value={
-                  fc(
+                <Field
+                  label="Net Worth"
+                  value={fc(
                     loan.borrower.netWorth
-                  )
-                }
-              />
+                  )}
+                />
 
-              <Field
-                label="City"
-                value={
-                  loan.borrower.city
-                }
-              />
+                <Field
+                  label="City"
+                  value={
+                    loan.borrower.city
+                  }
+                />
 
-              <Field
-                label="Country"
-                value={
-                  loan.borrower.country
-                }
-              />
+                <Field
+                  label="Country"
+                  value={
+                    loan.borrower.country
+                  }
+                />
 
-              <Field
-                label="Bank"
-                value={
-                  loan.borrower.bankName
-                }
-              />
+                <Field
+                  label="Bank"
+                  value={
+                    loan.borrower.bankName
+                  }
+                />
 
-              <Field
-                label="Account Number"
-                value={
-                  loan.borrower.bankAccountNumber
-                }
-              />
+                <Field
+                  label="Account Number"
+                  value={
+                    loan.borrower.bankAccountNumber
+                  }
+                />
 
-            </div>
+              </div>
 
-          </CardBody>
+            </CardBody>
 
-        </Card>
+          </Card>
+
+
+          {/* =================================================
+              CREDIT BUREAU IN BORROWER TAB
+          ================================================= */}
+
+          <Card>
+
+            <CardHeader
+              title="Credit Bureau Check"
+            />
+
+            <CardBody>
+
+              <div className="flex items-center justify-between gap-4 mb-5">
+
+                <div>
+
+                  <div className="font-semibold text-gray-900">
+                    {
+                      loan.borrower.firstName
+                    }{' '}
+
+                    {
+                      loan.borrower.lastName
+                    }
+                  </div>
+
+                  <div className="text-xs text-gray-500 mt-1">
+                    Borrower ID:{' '}
+                    {loan.borrower.id}
+                  </div>
+
+                  <div className="text-xs text-gray-500">
+                    Organization ID:{' '}
+                    {
+                      organizationId ??
+                      'Loading…'
+                    }
+                  </div>
+
+                </div>
+
+
+                <Button
+                  variant="outline"
+                  onClick={
+                    handleCreditBureauCheck
+                  }
+                  disabled={
+                    cbBusy ||
+                    !organizationId
+                  }
+                >
+
+                  <IconBank className="w-4 h-4" />
+
+                  {cbBusy
+                    ? 'Checking…'
+                    : 'Run Credit Bureau Check'}
+
+                </Button>
+
+              </div>
+
+
+              {creditBureauResult && (
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+                  <div className="bg-gray-50 rounded-xl p-4">
+
+                    <div className="text-xs text-gray-400 uppercase font-bold">
+                      Provider
+                    </div>
+
+                    <div className="font-semibold mt-1">
+                      {
+                        creditBureauResult.provider ??
+                        '—'
+                      }
+                    </div>
+
+                  </div>
+
+
+                  <div className="bg-gray-50 rounded-xl p-4">
+
+                    <div className="text-xs text-gray-400 uppercase font-bold">
+                      Credit Score
+                    </div>
+
+                    <div className="text-2xl font-extrabold text-teal-600 mt-1">
+                      {
+                        creditBureauResult.creditScore ??
+                        '—'
+                      }
+                    </div>
+
+                  </div>
+
+
+                  <div className="bg-gray-50 rounded-xl p-4">
+
+                    <div className="text-xs text-gray-400 uppercase font-bold">
+                      Risk Grade
+                    </div>
+
+                    <div className="font-semibold mt-1">
+                      {
+                        creditBureauResult.riskGrade ??
+                        '—'
+                      }
+                    </div>
+
+                  </div>
+
+
+                  <div className="bg-gray-50 rounded-xl p-4">
+
+                    <div className="text-xs text-gray-400 uppercase font-bold">
+                      Status
+                    </div>
+
+                    <div className="font-semibold mt-1">
+                      {
+                        creditBureauResult.status ??
+                        'COMPLETED'
+                      }
+                    </div>
+
+                  </div>
+
+                </div>
+
+              )}
+
+            </CardBody>
+
+          </Card>
+
+        </div>
 
       )}
 
 
-      {/* ===================================================
+      {/* =================================================
           DOCUMENTS
-      =================================================== */}
+      ================================================= */}
 
       {tab ===
         'Documents' && (
 
-        loan.borrower?.id
+        loan.borrower?.id ? (
 
-          ? (
-            <DocumentsPanel
-              borrowerId={
-                loan.borrower.id
-              }
-              key={
-                loan.borrower.id
-              }
-            />
-          )
+          <DocumentsPanel
+            borrowerId={
+              loan.borrower.id
+            }
+            key={
+              loan.borrower.id
+            }
+          />
 
-          : (
+        ) : (
 
-            <div
-              className="
-                bg-white
-                rounded-xl
-                border
-                border-gray-200
-                p-8
-                text-center
-                text-gray-400
-                text-sm
-              "
-            >
-              No borrower record is linked to this loan, so documents can't be shown.
-            </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
 
-          )
+            No borrower record is linked to this loan, so documents can't be shown.
+
+          </div>
+
+        )
 
       )}
 
 
-      {/* ===================================================
+      {/* =================================================
           SCHEDULE
-      =================================================== */}
+      ================================================= */}
 
       {tab ===
         'Schedule' && (
 
         <>
 
-          {chartData.length > 1 && (
+          {chartData.length >
+            1 && (
 
-            <Card
-              className="mb-4"
-            >
+            <Card className="mb-4">
 
               <CardHeader
                 title="Outstanding Balance Over Time"
@@ -2705,9 +2493,7 @@ export default function LoanDetailPage() {
                 >
 
                   <AreaChart
-                    data={
-                      chartData
-                    }
+                    data={chartData}
                   >
 
                     <defs>
@@ -2766,12 +2552,8 @@ export default function LoanDetailPage() {
 
                     <Tooltip
                       formatter={
-                        (value: any) =>
-                          fc(
-                            Number(
-                              value
-                            )
-                          )
+                        (v: number) =>
+                          fc(v)
                       }
                     />
 
@@ -2799,10 +2581,7 @@ export default function LoanDetailPage() {
           <Card>
 
             <CardHeader
-              title={`
-                Repayment Schedule
-                (${schedule.length} installments)
-              `}
+              title={`Repayment Schedule (${schedule.length} installments)`}
             />
 
 
@@ -2830,236 +2609,149 @@ export default function LoanDetailPage() {
 
               <Tbody>
 
-                {schedule.length === 0
+                {schedule.length ===
+                  0 ? (
 
-                  ? (
+                  <Tr>
 
-                    <Tr>
+                    <Td className="text-center py-10 text-gray-400">
 
-                      <Td
-                        className="
-                          text-center
-                          py-10
-                          text-gray-400
-                        "
+                      No schedule generated yet
+
+                    </Td>
+
+                  </Tr>
+
+                ) : (
+
+                  schedule.map(
+                    p => (
+
+                      <Tr
+                        key={p.id}
+                        className={
+                          p.isLate
+                            ? 'bg-orange-50'
+                            : ''
+                        }
                       >
-                        No schedule generated yet
-                      </Td>
 
-                    </Tr>
+                        <Td className="font-mono text-xs text-gray-500">
+                          {
+                            p.installmentNumber
+                          }
+                        </Td>
 
+                        <Td>
+                          {formatDate(
+                            p.dueDate,
+                            locale
+                          )}
+                        </Td>
+
+                        <Td className="font-semibold">
+                          {fc(
+                            p.amount
+                          )}
+                        </Td>
+
+                        <Td className="text-blue-600">
+                          {fc(
+                            p.principalComponent
+                          )}
+                        </Td>
+
+                        <Td className="text-purple-600">
+                          {fc(
+                            p.interestComponent
+                          )}
+                        </Td>
+
+                        <Td className="text-red-500">
+
+                          {p.penalty &&
+                          p.penalty > 0
+                            ? fc(
+                                p.penalty
+                              )
+                            : '—'}
+
+                        </Td>
+
+                        <Td>
+                          {fc(
+                            p.outstandingAfter
+                          )}
+                        </Td>
+
+                        <Td>
+
+                          {p.paid ? (
+
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">
+                              ✓ Paid
+                            </span>
+
+                          ) : p.isLate ? (
+
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">
+                              ⚠ Overdue
+                            </span>
+
+                          ) : (
+
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+                              Pending
+                            </span>
+
+                          )}
+
+                        </Td>
+
+                        <Td className="text-gray-400 text-xs">
+                          {formatDate(
+                            p.paidDate,
+                            locale
+                          )}
+                        </Td>
+
+                        <Td className="text-xs">
+
+                          {p.paid &&
+                          p.paymentMethod ? (
+
+                            <span
+                              title={
+                                p.transactionId
+                                  ? `Ref: ${p.transactionId}`
+                                  : ''
+                              }
+                              className="text-gray-600 font-medium"
+                            >
+                              {
+                                p.paymentMethod.replace(
+                                  /_/g,
+                                  ' '
+                                )
+                              }
+                            </span>
+
+                          ) : (
+
+                            <span className="text-gray-300">
+                              —
+                            </span>
+
+                          )}
+
+                        </Td>
+
+                      </Tr>
+
+                    )
                   )
 
-                  : schedule.map(
-                      p => (
-
-                        <Tr
-                          key={
-                            p.id
-                          }
-                          className={
-                            p.isLate
-                              ? 'bg-orange-50'
-                              : ''
-                          }
-                        >
-
-                          <Td
-                            className="
-                              font-mono
-                              text-xs
-                              text-gray-500
-                            "
-                          >
-                            {p.installmentNumber}
-                          </Td>
-
-
-                          <Td>
-                            {formatDate(
-                              p.dueDate,
-                              locale
-                            )}
-                          </Td>
-
-
-                          <Td
-                            className="font-semibold"
-                          >
-                            {fc(
-                              p.amount
-                            )}
-                          </Td>
-
-
-                          <Td
-                            className="text-blue-600"
-                          >
-                            {fc(
-                              p.principalComponent
-                            )}
-                          </Td>
-
-
-                          <Td
-                            className="text-purple-600"
-                          >
-                            {fc(
-                              p.interestComponent
-                            )}
-                          </Td>
-
-
-                          <Td
-                            className="text-red-500"
-                          >
-                            {p.penalty &&
-                            p.penalty > 0
-                              ? fc(
-                                  p.penalty
-                                )
-                              : '—'}
-                          </Td>
-
-
-                          <Td>
-                            {fc(
-                              p.outstandingAfter
-                            )}
-                          </Td>
-
-
-                          <Td>
-
-                            {p.paid
-
-                              ? (
-
-                                <span
-                                  className="
-                                    inline-flex
-                                    items-center
-                                    gap-1
-                                    text-xs
-                                    font-semibold
-                                    text-teal-700
-                                    bg-teal-50
-                                    px-2
-                                    py-0.5
-                                    rounded-full
-                                  "
-                                >
-                                  ✓ Paid
-                                </span>
-
-                              )
-
-                              : p.isLate
-
-                                ? (
-
-                                  <span
-                                    className="
-                                      inline-flex
-                                      items-center
-                                      gap-1
-                                      text-xs
-                                      font-semibold
-                                      text-orange-700
-                                      bg-orange-50
-                                      px-2
-                                      py-0.5
-                                      rounded-full
-                                    "
-                                  >
-                                    ⚠ Overdue
-                                  </span>
-
-                                )
-
-                                : (
-
-                                  <span
-                                    className="
-                                      inline-flex
-                                      items-center
-                                      gap-1
-                                      text-xs
-                                      font-semibold
-                                      text-gray-500
-                                      bg-gray-50
-                                      px-2
-                                      py-0.5
-                                      rounded-full
-                                    "
-                                  >
-                                    Pending
-                                  </span>
-
-                                )}
-
-                          </Td>
-
-
-                          <Td
-                            className="
-                              text-gray-400
-                              text-xs
-                            "
-                          >
-                            {formatDate(
-                              p.paidDate,
-                              locale
-                            )}
-                          </Td>
-
-
-                          <Td
-                            className="text-xs"
-                          >
-
-                            {p.paid &&
-                            p.paymentMethod
-
-                              ? (
-
-                                <span
-                                  title={
-                                    p.transactionId
-                                      ? `Ref: ${p.transactionId}`
-                                      : ''
-                                  }
-                                  className="
-                                    text-gray-600
-                                    font-medium
-                                  "
-                                >
-                                  {p.paymentMethod.replace(
-                                    /_/g,
-                                    ' '
-                                  )}
-                                </span>
-
-                              )
-
-                              : (
-
-                                <span
-                                  className="
-                                    text-gray-300
-                                  "
-                                >
-                                  —
-                                </span>
-
-                              )}
-
-                          </Td>
-
-                        </Tr>
-
-                      )
-                    )}
+                )}
 
               </Tbody>
 
@@ -3072,9 +2764,9 @@ export default function LoanDetailPage() {
       )}
 
 
-      {/* ===================================================
+      {/* =================================================
           TIMELINE
-      =================================================== */}
+      ================================================= */}
 
       {tab ===
         'Timeline' && (
@@ -3087,94 +2779,52 @@ export default function LoanDetailPage() {
 
           <CardBody>
 
-            <div
-              className="
-                relative
-              "
-            >
+            <div className="relative">
 
               {[
                 {
-                  icon:
-                    IconFileEdit,
-
-                  label:
-                    'Application Submitted',
-
-                  date:
-                    loan.startDate,
-
-                  done:
-                    true,
+                  icon: IconFileEdit,
+                  label: 'Application Submitted',
+                  date: loan.startDate,
+                  done: true,
                 },
 
                 {
-                  icon:
-                    IconSearch,
-
-                  label:
-                    'Under Review',
-
-                  date:
-                    loan.startDate,
-
+                  icon: IconSearch,
+                  label: 'Under Review',
+                  date: loan.startDate,
                   done:
                     loan.status !==
                     'PENDING',
                 },
 
                 {
-                  icon:
-                    IconCheckCircle,
-
-                  label:
-                    'Approved',
-
-                  date:
-                    loan.approvedAt,
-
+                  icon: IconCheckCircle,
+                  label: 'Approved',
+                  date: loan.approvedAt,
                   done:
                     !!loan.approvedAt,
                 },
 
                 {
-                  icon:
-                    IconCoins,
-
-                  label:
-                    'Disbursed',
-
-                  date:
-                    loan.disbursedAt,
-
+                  icon: IconCoins,
+                  label: 'Disbursed',
+                  date: loan.disbursedAt,
                   done:
                     !!loan.disbursedAt,
                 },
 
                 {
-                  icon:
-                    IconCalendar,
-
-                  label:
-                    'Next Payment Due',
-
-                  date:
-                    loan.nextDueDate,
-
-                  done:
-                    false,
+                  icon: IconCalendar,
+                  label: 'Next Payment Due',
+                  date: loan.nextDueDate,
+                  done: false,
                 },
 
                 {
-                  icon:
-                    IconFlag,
-
-                  label:
-                    'Maturity Date',
-
-                  date:
-                    loan.maturityDate,
-
+                  icon: IconFlag,
+                  label: 'Maturity Date',
+                  date: loan.maturityDate,
                   done:
                     loan.status ===
                     'PAID',
@@ -3189,34 +2839,20 @@ export default function LoanDetailPage() {
 
                   <div
                     key={i}
-                    className="
-                      flex
-                      gap-4
-                      pb-6
-                      relative
-                    "
+                    className="flex gap-4 pb-6 relative"
                   >
 
-                    <div
-                      className="
-                        flex
-                        flex-col
-                        items-center
-                      "
-                    >
+                    <div className="flex flex-col items-center">
 
                       <div
                         className={`
-                          w-9
-                          h-9
+                          w-9 h-9
                           rounded-full
-                          flex
-                          items-center
+                          flex items-center
                           justify-center
                           text-lg
                           border-2
                           z-10
-
                           ${
                             step.done
                               ? 'bg-teal-500 border-teal-500 text-white'
@@ -3233,14 +2869,12 @@ export default function LoanDetailPage() {
 
 
                       {i <
-                        arr.length - 1 && (
+                        arr.length -
+                          1 && (
 
                         <div
                           className={`
-                            w-0.5
-                            flex-1
-                            mt-1
-
+                            w-0.5 flex-1 mt-1
                             ${
                               step.done
                                 ? 'bg-teal-300'
@@ -3257,15 +2891,12 @@ export default function LoanDetailPage() {
                     </div>
 
 
-                    <div
-                      className="pt-1.5"
-                    >
+                    <div className="pt-1.5">
 
                       <div
                         className={`
                           font-semibold
                           text-sm
-
                           ${
                             step.done
                               ? 'text-gray-900'
@@ -3277,17 +2908,13 @@ export default function LoanDetailPage() {
                       </div>
 
 
-                      <div
-                        className="
-                          text-xs
-                          text-gray-400
-                          mt-0.5
-                        "
-                      >
+                      <div className="text-xs text-gray-400 mt-0.5">
+
                         {formatDate(
                           step.date,
                           locale
                         )}
+
                       </div>
 
                     </div>
@@ -3306,9 +2933,9 @@ export default function LoanDetailPage() {
       )}
 
 
-      {/* ===================================================
+      {/* =================================================
           COMMENTS
-      =================================================== */}
+      ================================================= */}
 
       {tab ===
         'Comments' && (
@@ -3321,20 +2948,10 @@ export default function LoanDetailPage() {
 
           <CardBody>
 
-            <div
-              className="
-                mb-6
-                bg-gray-50
-                rounded-xl
-                p-4
-              "
-            >
+            <div className="mb-6 bg-gray-50 rounded-xl p-4">
 
               <Textarea
-                placeholder="
-                  e.g. Please upload your land title document,
-                  or a recent utility bill as proof of address.
-                "
+                placeholder="e.g. Please upload your land title document, or a recent utility bill as proof of address."
                 value={
                   commentText
                 }
@@ -3348,25 +2965,9 @@ export default function LoanDetailPage() {
               />
 
 
-              <div
-                className="
-                  flex
-                  items-center
-                  justify-between
-                  mt-3
-                "
-              >
+              <div className="flex items-center justify-between mt-3">
 
-                <label
-                  className="
-                    flex
-                    items-center
-                    gap-2
-                    text-sm
-                    text-gray-600
-                    cursor-pointer
-                  "
-                >
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
 
                   <input
                     type="checkbox"
@@ -3405,14 +3006,10 @@ export default function LoanDetailPage() {
 
               {!commentVisible && (
 
-                <p
-                  className="
-                    text-xs
-                    text-amber-600
-                    mt-2
-                  "
-                >
+                <p className="text-xs text-amber-600 mt-2">
+
                   This note will be internal-only — the applicant won't see it.
+
                 </p>
 
               )}
@@ -3420,27 +3017,17 @@ export default function LoanDetailPage() {
             </div>
 
 
-            {comments.length === 0 && (
+            {comments.length ===
+              0 && (
 
-              <p
-                className="
-                  text-sm
-                  text-gray-400
-                  text-center
-                  py-6
-                "
-              >
+              <p className="text-sm text-gray-400 text-center py-6">
                 No comments yet.
               </p>
 
             )}
 
 
-            <div
-              className="
-                space-y-4
-              "
-            >
+            <div className="space-y-4">
 
               {comments
                 .slice()
@@ -3451,112 +3038,66 @@ export default function LoanDetailPage() {
                   ) => (
 
                     <div
-                      key={
-                        c.id
-                      }
-                      className="
-                        flex
-                        gap-3
-                      "
+                      key={c.id}
+                      className="flex gap-3"
                     >
 
-                      <div
-                        className="
-                          w-8
-                          h-8
-                          rounded-full
-                          bg-teal-100
-                          text-teal-700
-                          flex
-                          items-center
-                          justify-center
-                          text-xs
-                          font-bold
-                          shrink-0
-                        "
-                      >
+                      <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold shrink-0">
+
                         {
                           (
                             c.author?.name ||
                             'S'
                           )[0]
                         }
+
                       </div>
 
 
-                      <div
-                        className="
-                          flex-1
-                          min-w-0
-                        "
-                      >
+                      <div className="flex-1 min-w-0">
 
-                        <div
-                          className="
-                            flex
-                            items-center
-                            gap-2
-                            flex-wrap
-                          "
-                        >
+                        <div className="flex items-center gap-2 flex-wrap">
 
-                          <span
-                            className="
-                              text-sm
-                              font-semibold
-                              text-gray-800
-                            "
-                          >
+                          <span className="text-sm font-semibold text-gray-800">
+
                             {
                               c.author?.name ||
                               'Staff'
                             }
+
                           </span>
 
 
-                          <span
-                            className="
-                              text-xs
-                              text-gray-400
-                            "
-                          >
+                          <span className="text-xs text-gray-400">
+
                             {formatDate(
                               c.createdAt,
                               locale
                             )}
+
                           </span>
 
 
-                          {c.visibleToApplicant
+                          {c.visibleToApplicant ? (
 
-                            ? (
+                            <Pill
+                              label="Visible to applicant"
+                              color="blue"
+                            />
 
-                              <Pill
-                                label="Visible to applicant"
-                                color="blue"
-                              />
+                          ) : (
 
-                            )
+                            <Pill
+                              label="Internal only"
+                              color="gray"
+                            />
 
-                            : (
-
-                              <Pill
-                                label="Internal only"
-                                color="gray"
-                              />
-
-                            )}
+                          )}
 
                         </div>
 
 
-                        <p
-                          className="
-                            text-sm
-                            text-gray-700
-                            mt-1
-                          "
-                        >
+                        <p className="text-sm text-gray-700 mt-1">
                           {c.message}
                         </p>
 
@@ -3576,21 +3117,16 @@ export default function LoanDetailPage() {
       )}
 
 
-      {/* ===================================================
+      {/* =================================================
           PAYMENT MODAL
-      =================================================== */}
+      ================================================= */}
 
       <Modal
-        open={
-          payOpen
-        }
+        open={payOpen}
         onClose={() =>
-          setPayOpen(
-            false
-          )
+          setPayOpen(false)
         }
         title="Record Payment"
-
         footer={
 
           <>
@@ -3598,9 +3134,7 @@ export default function LoanDetailPage() {
             <Button
               variant="secondary"
               onClick={() =>
-                setPayOpen(
-                  false
-                )
+                setPayOpen(false)
               }
             >
               Cancel
@@ -3629,18 +3163,7 @@ export default function LoanDetailPage() {
           }
         >
 
-          <div
-            className="
-              bg-gray-50
-              rounded-xl
-              p-4
-              mb-4
-              grid
-              grid-cols-2
-              gap-3
-              text-sm
-            "
-          >
+          <div className="bg-gray-50 rounded-xl p-4 mb-4 grid grid-cols-2 gap-3 text-sm">
 
             {[
               [
@@ -3669,27 +3192,16 @@ export default function LoanDetailPage() {
               ],
 
             ].map(
-              ([label, value]) => (
+              ([l, v]) => (
 
-                <div
-                  key={
-                    label
-                  }
-                >
+                <div key={l}>
 
-                  <div
-                    className="
-                      text-xs
-                      text-gray-400
-                    "
-                  >
-                    {label}
+                  <div className="text-xs text-gray-400">
+                    {l}
                   </div>
 
-                  <div
-                    className="font-bold"
-                  >
-                    {value}
+                  <div className="font-bold">
+                    {v}
                   </div>
 
                 </div>
@@ -3700,13 +3212,7 @@ export default function LoanDetailPage() {
           </div>
 
 
-          <div
-            className="
-              grid
-              grid-cols-2
-              gap-4
-            "
-          >
+          <div className="grid grid-cols-2 gap-4">
 
             <FormGroup
               label="Amount"
@@ -3764,20 +3270,17 @@ export default function LoanDetailPage() {
                   'CHEQUE',
                   'DIRECT_DEBIT',
                 ].map(
-                  method => (
+                  m => (
 
                     <option
-                      key={
-                        method
-                      }
-                      value={
-                        method
-                      }
+                      key={m}
                     >
-                      {method.replace(
-                        /_/g,
-                        ' '
-                      )}
+                      {
+                        m.replace(
+                          /_/g,
+                          ' '
+                        )
+                      }
                     </option>
 
                   )
@@ -3865,21 +3368,16 @@ export default function LoanDetailPage() {
       </Modal>
 
 
-      {/* ===================================================
+      {/* =================================================
           STATUS MODAL
-      =================================================== */}
+      ================================================= */}
 
       <Modal
-        open={
-          stOpen
-        }
+        open={stOpen}
         onClose={() =>
-          setStOpen(
-            false
-          )
+          setStOpen(false)
         }
         title="Update Loan Status"
-
         footer={
 
           <>
@@ -3887,9 +3385,7 @@ export default function LoanDetailPage() {
             <Button
               variant="secondary"
               onClick={() =>
-                setStOpen(
-                  false
-                )
+                setStOpen(false)
               }
             >
               Cancel
@@ -3918,18 +3414,7 @@ export default function LoanDetailPage() {
           }
         >
 
-          <div
-            className="
-              bg-gray-50
-              rounded-xl
-              p-3
-              mb-4
-              text-sm
-              flex
-              items-center
-              gap-2
-            "
-          >
+          <div className="bg-gray-50 rounded-xl p-3 mb-4 text-sm flex items-center gap-2">
 
             Current:
 
@@ -3977,44 +3462,44 @@ export default function LoanDetailPage() {
                     string[]
                   > = {
 
-                  PENDING: [
-                    'UNDER_REVIEW',
-                    'APPROVED',
-                    'REJECTED',
-                  ],
+                    PENDING: [
+                      'UNDER_REVIEW',
+                      'APPROVED',
+                      'REJECTED',
+                    ],
 
-                  UNDER_REVIEW: [
-                    'APPROVED',
-                    'REJECTED',
-                  ],
+                    UNDER_REVIEW: [
+                      'APPROVED',
+                      'REJECTED',
+                    ],
 
-                  APPROVED: [
-                    'DISBURSED',
-                  ],
+                    APPROVED: [
+                      'DISBURSED',
+                    ],
 
-                  ACTIVE: [
-                    'DEFAULTED',
-                  ],
+                    ACTIVE: [
+                      'DEFAULTED',
+                    ],
 
-                  OVERDUE: [
-                    'DEFAULTED',
-                  ],
+                    OVERDUE: [
+                      'DEFAULTED',
+                    ],
 
-                  PAID: [
-                    'CLOSED',
-                  ],
+                    PAID: [
+                      'CLOSED',
+                    ],
 
-                  WRITTEN_OFF: [
-                    'CLOSED',
-                  ],
-
-                };
+                    WRITTEN_OFF: [
+                      'CLOSED',
+                    ],
+                  };
 
 
                 const options =
                   VALID_FROM[
                     loan.status
-                  ] ?? [];
+                  ] ??
+                  [];
 
 
                 if (
@@ -4023,7 +3508,6 @@ export default function LoanDetailPage() {
                 ) {
 
                   return (
-
                     <option
                       disabled
                     >
@@ -4035,27 +3519,23 @@ export default function LoanDetailPage() {
                         )
                       }
                     </option>
-
                   );
-
                 }
 
 
                 return options.map(
-                  status => (
+                  s => (
 
                     <option
-                      key={
-                        status
-                      }
-                      value={
-                        status
-                      }
+                      key={s}
+                      value={s}
                     >
-                      {status.replace(
-                        /_/g,
-                        ' '
-                      )}
+                      {
+                        s.replace(
+                          /_/g,
+                          ' '
+                        )
+                      }
                     </option>
 
                   )
@@ -4072,81 +3552,64 @@ export default function LoanDetailPage() {
             'APPROVED' && (
 
             <FormGroup
-              label={`
-                Interest Rate
-                ${
-                  loan.interestRateType ===
-                  'MONTHLY'
-                    ? '(monthly)'
-                    : '(annual)'
-                }
-              `}
+              label={`Interest Rate ${
+                loan.interestRateType ===
+                'MONTHLY'
+                  ? '(monthly)'
+                  : '(annual)'
+              }`}
             >
 
-              <p
-                className="
-                  text-xs
-                  text-gray-400
-                  mb-2
-                "
-              >
+              <p className="text-xs text-gray-400 mb-2">
+
                 Applied on the website at{' '}
+
                 <strong>
                   {loan.interestRate}%
                 </strong>.
+
                 Loans are flexible — adjust it here if this borrower should get a different rate; leave it as-is to keep the original.
+
               </p>
 
 
-              <div
-                className="
-                  flex
-                  gap-2
-                  flex-wrap
-                "
-              >
+              <div className="flex gap-2 flex-wrap">
 
                 {[
                   '6',
                   '8',
                   '10',
                 ].map(
-                  rate => (
+                  r => (
 
                     <button
-                      key={
-                        rate
-                      }
+                      key={r}
                       type="button"
                       onClick={() =>
                         setStForm(
                           f => ({
                             ...f,
                             interestRate:
-                              rate,
+                              r,
                           })
                         )
                       }
                       className={`
-                        px-4
-                        py-2
+                        px-4 py-2
                         rounded-lg
                         text-sm
                         font-semibold
                         border
                         transition-colors
-
                         ${
                           stForm.interestRate ===
-                          rate
-
+                          r
                             ? 'bg-teal-600 text-white border-teal-600'
-
                             : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                         }
                       `}
                     >
-                      {rate}%
+                      {r}%
                     </button>
 
                   )
@@ -4165,20 +3628,16 @@ export default function LoanDetailPage() {
                     )
                   }
                   className={`
-                    px-4
-                    py-2
+                    px-4 py-2
                     rounded-lg
                     text-sm
                     font-semibold
                     border
                     transition-colors
-
                     ${
                       stForm.interestRate ===
                       ''
-
                         ? 'bg-teal-600 text-white border-teal-600'
-
                         : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                     }
                   `}
@@ -4214,18 +3673,7 @@ export default function LoanDetailPage() {
                         })
                       )
                   }
-                  className="
-                    w-28
-                    px-3
-                    py-2
-                    rounded-lg
-                    text-sm
-                    border
-                    border-gray-200
-                    focus:outline-none
-                    focus:ring-2
-                    focus:ring-teal-500
-                  "
+                  className="w-28 px-3 py-2 rounded-lg text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
 
               </div>
@@ -4293,6 +3741,5 @@ export default function LoanDetailPage() {
       </Modal>
 
     </div>
-
   );
 }
