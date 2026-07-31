@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 import { currentTenantDomain } from '../lib/tenant';
 
@@ -14,13 +13,9 @@ const API = axios.create({
   },
 });
 
-
 API.interceptors.request.use(
   (config) => {
-
     if (typeof window !== 'undefined') {
-
-    
       const token =
         localStorage.getItem('token');
 
@@ -33,7 +28,6 @@ API.interceptors.request.use(
         currentTenantDomain();
 
       if (tenantDomain) {
-
         config.headers['X-Tenant-Domain'] =
           tenantDomain;
       }
@@ -48,33 +42,25 @@ API.interceptors.request.use(
 );
 
 API.interceptors.response.use(
-
- 
   (response) => {
     return response;
   },
 
   (error) => {
-
     const status =
       error.response?.status;
 
-
-   
     if (
       status === 401 &&
       typeof window !== 'undefined'
     ) {
-
       const requestUrl =
         error.config?.url || '';
 
       const isLoginRequest =
         requestUrl.includes('/auth/login');
 
-
       if (!isLoginRequest) {
-
         localStorage.removeItem('token');
         localStorage.removeItem('user');
 
@@ -83,14 +69,11 @@ API.interceptors.response.use(
       }
     }
 
-
-    
     const message =
       error.response?.data?.error ||
       error.response?.data?.message ||
       error.message ||
       'An error occurred';
-
 
     const err =
       new Error(message) as Error & {
@@ -98,34 +81,27 @@ API.interceptors.response.use(
         data?: unknown;
       };
 
-
     err.status =
       status;
 
     err.data =
       error.response?.data;
 
-
     return Promise.reject(err);
   }
 );
 
-
 export default API;
-
-
 
 const unwrap = (
   body: unknown
 ) => {
-
   if (
     body &&
     typeof body === 'object' &&
     'data' in
       (body as Record<string, unknown>)
   ) {
-
     return (
       body as Record<string, unknown>
     ).data;
@@ -134,9 +110,6 @@ const unwrap = (
   return body;
 };
 
-
-
-
 export const get =
   (url: string) =>
     API
@@ -144,7 +117,6 @@ export const get =
       .then((response) =>
         unwrap(response.data)
       );
-
 
 export const post =
   (
@@ -157,7 +129,6 @@ export const post =
         unwrap(response.data)
       );
 
-
 export const put =
   (
     url: string,
@@ -169,7 +140,6 @@ export const put =
         unwrap(response.data)
       );
 
-
 export const del =
   (url: string) =>
     API
@@ -178,10 +148,13 @@ export const del =
         unwrap(response.data)
       );
 
-
+/**
+ * =========================================================
+ * AUTH
+ * =========================================================
+ */
 
 export const authApi = {
-
   login:
     (
       email: string,
@@ -219,11 +192,13 @@ export const authApi = {
       get('/auth/me'),
 };
 
-
-
+/**
+ * =========================================================
+ * LOANS
+ * =========================================================
+ */
 
 export const loanApi = {
-
   list:
     (
       page = 0,
@@ -231,7 +206,6 @@ export const loanApi = {
       status = '',
       type = ''
     ) => {
-
       const params =
         new URLSearchParams();
 
@@ -264,13 +238,11 @@ export const loanApi = {
       );
     },
 
-
   get:
     (id: number) =>
       get(
         `/loans/${id}`
       ),
-
 
   create:
     (data: unknown) =>
@@ -278,7 +250,6 @@ export const loanApi = {
         '/loans',
         data
       ),
-
 
   approve:
     (
@@ -298,7 +269,6 @@ export const loanApi = {
         }
       ),
 
-
   reject:
     (
       id: number,
@@ -310,7 +280,6 @@ export const loanApi = {
           reason,
         }
       ),
-
 
   disburse:
     (
@@ -324,7 +293,6 @@ export const loanApi = {
             method,
         }
       ),
-
 
   updateStatus:
     (
@@ -340,13 +308,11 @@ export const loanApi = {
         }
       ),
 
-
   dashboard:
     () =>
       get(
         '/loans/dashboard'
       ),
-
 
   schedule:
     (id: number) =>
@@ -354,20 +320,17 @@ export const loanApi = {
         `/loans/${id}/schedule`
       ),
 
-
   risk:
     (id: number) =>
       get(
         `/loans/${id}/risk`
       ),
 
-
   documentRequirements:
     (id: number) =>
       get(
         `/loans/${id}/document-requirements`
       ),
-
 
   restructure:
     (
@@ -378,7 +341,6 @@ export const loanApi = {
         `/loans/${id}/restructure`,
         data
       ),
-
 
   writeOff:
     (
@@ -392,7 +354,6 @@ export const loanApi = {
         }
       ),
 
-
   moratorium:
     (
       id: number,
@@ -403,13 +364,11 @@ export const loanApi = {
         data
       ),
 
-
   getComments:
     (id: number) =>
       get(
         `/loans/${id}/comments`
       ),
-
 
   addComment:
     (
@@ -426,11 +385,13 @@ export const loanApi = {
       ),
 };
 
-
-
+/**
+ * =========================================================
+ * PAYMENTS
+ * =========================================================
+ */
 
 export const paymentApi = {
-
   record:
     (
       loanId: number,
@@ -455,7 +416,6 @@ export const paymentApi = {
           unwrap(response.data)
         ),
 
-
   schedule:
     (loanId: number) =>
       get(
@@ -463,18 +423,19 @@ export const paymentApi = {
       ),
 };
 
-
-
+/**
+ * =========================================================
+ * BORROWERS
+ * =========================================================
+ */
 
 export const borrowerApi = {
-
   list:
     (
       page = 0,
       size = 20,
       q = ''
     ) => {
-
       const params =
         new URLSearchParams();
 
@@ -500,13 +461,11 @@ export const borrowerApi = {
       );
     },
 
-
   get:
     (id: number) =>
       get(
         `/borrowers/${id}`
       ),
-
 
   create:
     (data: unknown) =>
@@ -514,7 +473,6 @@ export const borrowerApi = {
         '/borrowers',
         data
       ),
-
 
   update:
     (
@@ -527,17 +485,18 @@ export const borrowerApi = {
       ),
 };
 
-
-
+/**
+ * =========================================================
+ * COMPLIANCE
+ * =========================================================
+ */
 
 export const complianceApi = {
-
   screen:
     (borrowerId: number) =>
       post(
         `/compliance/borrowers/${borrowerId}/screen`
       ),
-
 
   history:
     (borrowerId: number) =>
@@ -545,20 +504,17 @@ export const complianceApi = {
         `/compliance/borrowers/${borrowerId}/history`
       ),
 
-
   status:
     (borrowerId: number) =>
       get(
         `/compliance/borrowers/${borrowerId}/status`
       ),
 
-
   pendingReviews:
     () =>
       get(
         '/compliance/pending-reviews'
       ),
-
 
   decide:
     (
@@ -571,15 +527,18 @@ export const complianceApi = {
       ),
 };
 
+/**
+ * =========================================================
+ * MFA
+ * =========================================================
+ */
 
 export const mfaApi = {
-
   setup:
     () =>
       post(
         '/mfa/setup'
       ),
-
 
   confirm:
     (code: string) =>
@@ -590,7 +549,6 @@ export const mfaApi = {
         }
       ),
 
-
   disable:
     () =>
       post(
@@ -598,11 +556,13 @@ export const mfaApi = {
       ),
 };
 
-
-
+/**
+ * =========================================================
+ * BULK
+ * =========================================================
+ */
 
 export const bulkApi = {
-
   disburse:
     (
       loanIds: number[],
@@ -618,16 +578,18 @@ export const bulkApi = {
       ),
 };
 
-
+/**
+ * =========================================================
+ * ORGANIZATION
+ * =========================================================
+ */
 
 export const orgApi = {
-
   me:
     () =>
       get(
         '/organizations/me'
       ),
-
 
   update:
     (data: unknown) =>
@@ -636,7 +598,6 @@ export const orgApi = {
         data
       ),
 
-
   users:
     () =>
       get(
@@ -644,17 +605,18 @@ export const orgApi = {
       ),
 };
 
-
-
+/**
+ * =========================================================
+ * WEBHOOKS
+ * =========================================================
+ */
 
 export const webhookApi = {
-
   list:
     () =>
       get(
         '/webhooks'
       ),
-
 
   create:
     (data: unknown) =>
@@ -663,7 +625,6 @@ export const webhookApi = {
         data
       ),
 
-
   remove:
     (id: number) =>
       del(
@@ -671,17 +632,18 @@ export const webhookApi = {
       ),
 };
 
-
-
+/**
+ * =========================================================
+ * CURRENCY
+ * =========================================================
+ */
 
 export const currencyApi = {
-
   rates:
     (base = 'USD') =>
       get(
         `/currencies?base=${encodeURIComponent(base)}`
       ),
-
 
   convert:
     (
@@ -693,20 +655,17 @@ export const currencyApi = {
         `/currencies/convert?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&amount=${amount}`
       ),
 
-
   supported:
     () =>
       get(
         '/currencies/supported'
       ),
 
-
   status:
     () =>
       get(
         '/currencies/status'
       ),
-
 
   refresh:
     () =>
@@ -715,17 +674,18 @@ export const currencyApi = {
       ),
 };
 
-
-
+/**
+ * =========================================================
+ * PRIVACY
+ * =========================================================
+ */
 
 export const privacyApi = {
-
   exportData:
     (id: number) =>
       get(
         `/privacy/borrowers/${id}/export`
       ),
-
 
   eraseData:
     (id: number) =>
@@ -734,42 +694,52 @@ export const privacyApi = {
       ),
 };
 
-
 /**
  * =========================================================
  * CREDIT BUREAU
  * =========================================================
+ *
+ * IMPORTANT:
+ * Backend CreditBureauController now requires:
+ *
+ *   ?organizationId={organizationId}
+ *
+ * on check/history/latest.
  */
 
 export const creditBureauApi = {
-
   check:
-    (borrowerId: number) =>
+    (
+      borrowerId: number,
+      organizationId: number
+    ) =>
       post(
-        `/credit-bureau/borrowers/${borrowerId}/check`
+        `/credit-bureau/borrowers/${borrowerId}/check?organizationId=${organizationId}`
       ),
-
 
   history:
-    (borrowerId: number) =>
+    (
+      borrowerId: number,
+      organizationId: number
+    ) =>
       get(
-        `/credit-bureau/borrowers/${borrowerId}/history`
+        `/credit-bureau/borrowers/${borrowerId}/history?organizationId=${organizationId}`
       ),
-
 
   latest:
-    (borrowerId: number) =>
+    (
+      borrowerId: number,
+      organizationId: number
+    ) =>
       get(
-        `/credit-bureau/borrowers/${borrowerId}/latest`
+        `/credit-bureau/borrowers/${borrowerId}/latest?organizationId=${organizationId}`
       ),
-
 
   reportForLoan:
     (loanId: number) =>
       get(
         `/credit-bureau/loans/${loanId}/report`
       ),
-
 
   retryReport:
     (loanId: number) =>
@@ -778,7 +748,6 @@ export const creditBureauApi = {
       ),
 };
 
-
 /**
  * =========================================================
  * E-SIGNATURE
@@ -786,7 +755,6 @@ export const creditBureauApi = {
  */
 
 export const esignatureApi = {
-
   initiate:
     (
       loanId: number,
@@ -799,14 +767,12 @@ export const esignatureApi = {
         }
       ),
 
-
   history:
     (loanId: number) =>
       get(
         `/loans/${loanId}/esignature`
       ),
 };
-
 
 /**
  * =========================================================
@@ -815,13 +781,11 @@ export const esignatureApi = {
  */
 
 export const accountingApi = {
-
   chartOfAccounts:
     () =>
       get(
         '/accounting/chart-of-accounts'
       ),
-
 
   createAccount:
     (
@@ -837,7 +801,6 @@ export const accountingApi = {
         data
       ),
 
-
   updateAccount:
     (
       id: number,
@@ -851,13 +814,11 @@ export const accountingApi = {
         data
       ),
 
-
   journal:
     () =>
       get(
         '/accounting/journal'
       ),
-
 
   reverseEntry:
     (
@@ -871,13 +832,11 @@ export const accountingApi = {
         }
       ),
 
-
   ledger:
     (accountId: number) =>
       get(
         `/accounting/ledger/${accountId}`
       ),
-
 
   trialBalance:
     () =>
@@ -885,22 +844,18 @@ export const accountingApi = {
         '/accounting/trial-balance'
       ),
 
-
   balanceSheet:
     () =>
       get(
         '/accounting/balance-sheet'
       ),
 
-
   profitAndLoss:
     (
       from?: string,
       to?: string
     ) => {
-
       if (from && to) {
-
         return get(
           `/accounting/profit-and-loss?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
         );
@@ -911,15 +866,12 @@ export const accountingApi = {
       );
     },
 
-
   cashFlow:
     (
       from?: string,
       to?: string
     ) => {
-
       if (from && to) {
-
         return get(
           `/accounting/cash-flow?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
         );
@@ -930,15 +882,12 @@ export const accountingApi = {
       );
     },
 
-
   branchSummary:
     (
       from?: string,
       to?: string
     ) => {
-
       if (from && to) {
-
         return get(
           `/accounting/branch-summary?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
         );
@@ -950,16 +899,18 @@ export const accountingApi = {
     },
 };
 
-
+/**
+ * =========================================================
+ * BANK ACCOUNTS
+ * =========================================================
+ */
 
 export const bankAccountApi = {
-
   list:
     () =>
       get(
         '/bank-accounts'
       ),
-
 
   create:
     (
@@ -977,7 +928,6 @@ export const bankAccountApi = {
         data
       ),
 
-
   recordTransaction:
     (
       id: number,
@@ -992,7 +942,6 @@ export const bankAccountApi = {
         `/bank-accounts/${id}/transactions`,
         data
       ),
-
 
   transfer:
     (
@@ -1009,15 +958,18 @@ export const bankAccountApi = {
       ),
 };
 
+/**
+ * =========================================================
+ * CONTACT MESSAGES
+ * =========================================================
+ */
 
 export const contactMessageApi = {
-
   list:
     () =>
       get(
         '/contact-messages'
       ),
-
 
   unreadCount:
     () =>
@@ -1025,13 +977,11 @@ export const contactMessageApi = {
         '/contact-messages/unread-count'
       ),
 
-
   markRead:
     (id: number) =>
       post(
         `/contact-messages/${id}/read`
       ),
-
 
   delete:
     (id: number) =>
@@ -1040,51 +990,34 @@ export const contactMessageApi = {
       ),
 };
 
-
 /**
  * =========================================================
  * PUBLIC / CLIENT APIs
  * =========================================================
  *
- * These requests also receive X-Tenant-Domain automatically
- * through the interceptor above.
+ * These requests also receive X-Tenant-Domain
+ * automatically through the interceptor above.
  */
 
 export const publicApi = {
-
-  /**
-   * Get organization resolved from X-Tenant-Domain.
-   */
   getOrganization:
     () =>
       get(
         '/public/organization'
       ),
 
-
-  /**
-   * Legacy/local-development slug lookup.
-   */
   getTenant:
     (slug: string) =>
       get(
         `/public/tenant/${encodeURIComponent(slug)}`
       ),
 
-
-  /**
-   * Legacy/local-development product lookup.
-   */
   getProducts:
     (slug: string) =>
       get(
         `/public/tenant/${encodeURIComponent(slug)}/products`
       ),
 
-
-  /**
-   * Public loan application.
-   */
   apply:
     (data: unknown) =>
       post(
@@ -1092,10 +1025,6 @@ export const publicApi = {
         data
       ),
 
-
-  /**
-   * Track application.
-   */
   trackApplication:
     (
       reference: string,
@@ -1105,10 +1034,6 @@ export const publicApi = {
         `/public/applications/${encodeURIComponent(reference.trim())}/status?phone=${encodeURIComponent(phone.trim())}`
       ),
 
-
-  /**
-   * Applicant dashboard.
-   */
   trackDashboard:
     (
       reference: string,
@@ -1125,10 +1050,6 @@ export const publicApi = {
         }
       ),
 
-
-  /**
-   * Initiate applicant payment.
-   */
   initiatePayment:
     (
       reference: string,
@@ -1161,10 +1082,6 @@ export const publicApi = {
         data
       ),
 
-
-  /**
-   * Track applicant comments.
-   */
   trackComments:
     (
       reference: string,
@@ -1174,10 +1091,6 @@ export const publicApi = {
         `/public/applications/${encodeURIComponent(reference.trim())}/comments?phone=${encodeURIComponent(phone.trim())}`
       ),
 
-
-  /**
-   * List applicant documents.
-   */
   listDocuments:
     (
       reference: string,
@@ -1187,10 +1100,6 @@ export const publicApi = {
         `/public/applications/${encodeURIComponent(reference.trim())}/documents?phone=${encodeURIComponent(phone.trim())}`
       ),
 
-
-  /**
-   * Download applicant document.
-   */
   downloadDocument:
     (
       reference: string,
@@ -1208,10 +1117,6 @@ export const publicApi = {
         }
       ),
 
-
-  /**
-   * Delete applicant document.
-   */
   deleteDocument:
     (
       reference: string,
@@ -1222,10 +1127,6 @@ export const publicApi = {
         `/public/applications/${encodeURIComponent(reference.trim())}/documents/${fileId}?phone=${encodeURIComponent(phone.trim())}`
       ),
 
-
-  /**
-   * Upload applicant document.
-   */
   uploadDocument:
     (
       reference: string,
@@ -1234,7 +1135,6 @@ export const publicApi = {
       file: File | Blob,
       fileName?: string
     ) => {
-
       const form =
         new FormData();
 
@@ -1259,7 +1159,6 @@ export const publicApi = {
           )
       );
 
-
       return API
         .post(
           `/public/applications/${encodeURIComponent(reference.trim())}/documents`,
@@ -1280,7 +1179,6 @@ export const publicApi = {
     },
 };
 
-
 /**
  * =========================================================
  * LEGACY LOAN IMPORT
@@ -1288,7 +1186,6 @@ export const publicApi = {
  */
 
 export const importApi = {
-
   template:
     () =>
       API.get(
@@ -1299,10 +1196,8 @@ export const importApi = {
         }
       ),
 
-
   preview:
     (file: File) => {
-
       const form =
         new FormData();
 
@@ -1330,10 +1225,8 @@ export const importApi = {
         );
     },
 
-
   commit:
     (file: File) => {
-
       const form =
         new FormData();
 
@@ -1360,7 +1253,6 @@ export const importApi = {
           response.data
         );
     },
-
 
   batches:
     () =>
