@@ -20,26 +20,22 @@ API.interceptors.request.use(
 
     if (typeof window !== 'undefined') {
 
-
+    
       const token =
         localStorage.getItem('token');
 
       if (token) {
-
         config.headers.Authorization =
           `Bearer ${token}`;
       }
 
-
-     
-
-      const domain =
+      const tenantDomain =
         currentTenantDomain();
 
-      if (domain) {
+      if (tenantDomain) {
 
         config.headers['X-Tenant-Domain'] =
-          domain;
+          tenantDomain;
       }
     }
 
@@ -51,16 +47,12 @@ API.interceptors.request.use(
   }
 );
 
-
-
-
 API.interceptors.response.use(
 
-  
+ 
   (response) => {
     return response;
   },
-
 
   (error) => {
 
@@ -68,8 +60,7 @@ API.interceptors.response.use(
       error.response?.status;
 
 
-    
-
+   
     if (
       status === 401 &&
       typeof window !== 'undefined'
@@ -92,6 +83,8 @@ API.interceptors.response.use(
       }
     }
 
+
+    
     const message =
       error.response?.data?.error ||
       error.response?.data?.message ||
@@ -121,6 +114,7 @@ API.interceptors.response.use(
 export default API;
 
 
+
 const unwrap = (
   body: unknown
 ) => {
@@ -139,6 +133,8 @@ const unwrap = (
 
   return body;
 };
+
+
 
 
 export const get =
@@ -192,9 +188,8 @@ export const authApi = {
       password: string,
       mfaCode?: string,
       otp?: string
-    ) => {
-
-      return post(
+    ) =>
+      post(
         '/auth/login',
         {
           email:
@@ -203,14 +198,14 @@ export const authApi = {
           password,
 
           mfaCode:
-            mfaCode?.trim() || undefined,
+            mfaCode?.trim() ||
+            undefined,
 
           otp:
-            otp?.trim() || undefined,
+            otp?.trim() ||
+            undefined,
         }
-      );
-    },
-
+      ),
 
   register:
     (data: unknown) =>
@@ -219,11 +214,11 @@ export const authApi = {
         data
       ),
 
-
   me:
     () =>
       get('/auth/me'),
 };
+
 
 
 
@@ -272,12 +267,17 @@ export const loanApi = {
 
   get:
     (id: number) =>
-      get(`/loans/${id}`),
+      get(
+        `/loans/${id}`
+      ),
 
 
   create:
     (data: unknown) =>
-      post('/loans', data),
+      post(
+        '/loans',
+        data
+      ),
 
 
   approve:
@@ -343,17 +343,23 @@ export const loanApi = {
 
   dashboard:
     () =>
-      get('/loans/dashboard'),
+      get(
+        '/loans/dashboard'
+      ),
 
 
   schedule:
     (id: number) =>
-      get(`/loans/${id}/schedule`),
+      get(
+        `/loans/${id}/schedule`
+      ),
 
 
   risk:
     (id: number) =>
-      get(`/loans/${id}/risk`),
+      get(
+        `/loans/${id}/risk`
+      ),
 
 
   documentRequirements:
@@ -400,7 +406,9 @@ export const loanApi = {
 
   getComments:
     (id: number) =>
-      get(`/loans/${id}/comments`),
+      get(
+        `/loans/${id}/comments`
+      ),
 
 
   addComment:
@@ -419,6 +427,8 @@ export const loanApi = {
 };
 
 
+
+
 export const paymentApi = {
 
   record:
@@ -426,9 +436,8 @@ export const paymentApi = {
       loanId: number,
       data: unknown,
       idempotencyKey?: string
-    ) => {
-
-      return API
+    ) =>
+      API
         .post(
           `/loans/${loanId}/payments`,
           data,
@@ -444,8 +453,7 @@ export const paymentApi = {
         )
         .then((response) =>
           unwrap(response.data)
-        );
-    },
+        ),
 
 
   schedule:
@@ -454,6 +462,7 @@ export const paymentApi = {
         `/loans/${loanId}/payments`
       ),
 };
+
 
 
 
@@ -494,12 +503,17 @@ export const borrowerApi = {
 
   get:
     (id: number) =>
-      get(`/borrowers/${id}`),
+      get(
+        `/borrowers/${id}`
+      ),
 
 
   create:
     (data: unknown) =>
-      post('/borrowers', data),
+      post(
+        '/borrowers',
+        data
+      ),
 
 
   update:
@@ -512,6 +526,8 @@ export const borrowerApi = {
         data
       ),
 };
+
+
 
 
 export const complianceApi = {
@@ -560,7 +576,9 @@ export const mfaApi = {
 
   setup:
     () =>
-      post('/mfa/setup'),
+      post(
+        '/mfa/setup'
+      ),
 
 
   confirm:
@@ -575,7 +593,9 @@ export const mfaApi = {
 
   disable:
     () =>
-      post('/mfa/disable'),
+      post(
+        '/mfa/disable'
+      ),
 };
 
 
@@ -600,12 +620,13 @@ export const bulkApi = {
 
 
 
-
 export const orgApi = {
 
   me:
     () =>
-      get('/organizations/me'),
+      get(
+        '/organizations/me'
+      ),
 
 
   update:
@@ -625,11 +646,14 @@ export const orgApi = {
 
 
 
+
 export const webhookApi = {
 
   list:
     () =>
-      get('/webhooks'),
+      get(
+        '/webhooks'
+      ),
 
 
   create:
@@ -646,6 +670,7 @@ export const webhookApi = {
         `/webhooks/${id}`
       ),
 };
+
 
 
 
@@ -691,6 +716,8 @@ export const currencyApi = {
 };
 
 
+
+
 export const privacyApi = {
 
   exportData:
@@ -708,6 +735,11 @@ export const privacyApi = {
 };
 
 
+/**
+ * =========================================================
+ * CREDIT BUREAU
+ * =========================================================
+ */
 
 export const creditBureauApi = {
 
@@ -747,7 +779,11 @@ export const creditBureauApi = {
 };
 
 
-
+/**
+ * =========================================================
+ * E-SIGNATURE
+ * =========================================================
+ */
 
 export const esignatureApi = {
 
@@ -772,6 +808,11 @@ export const esignatureApi = {
 };
 
 
+/**
+ * =========================================================
+ * ACCOUNTING
+ * =========================================================
+ */
 
 export const accountingApi = {
 
@@ -910,11 +951,14 @@ export const accountingApi = {
 };
 
 
+
 export const bankAccountApi = {
 
   list:
     () =>
-      get('/bank-accounts'),
+      get(
+        '/bank-accounts'
+      ),
 
 
   create:
@@ -966,12 +1010,13 @@ export const bankAccountApi = {
 };
 
 
-
 export const contactMessageApi = {
 
   list:
     () =>
-      get('/contact-messages'),
+      get(
+        '/contact-messages'
+      ),
 
 
   unreadCount:
@@ -996,18 +1041,30 @@ export const contactMessageApi = {
 };
 
 
-
+/**
+ * =========================================================
+ * PUBLIC / CLIENT APIs
+ * =========================================================
+ *
+ * These requests also receive X-Tenant-Domain automatically
+ * through the interceptor above.
+ */
 
 export const publicApi = {
 
- 
-
+  /**
+   * Get organization resolved from X-Tenant-Domain.
+   */
   getOrganization:
     () =>
-      get('/public/organization'),
+      get(
+        '/public/organization'
+      ),
 
 
- 
+  /**
+   * Legacy/local-development slug lookup.
+   */
   getTenant:
     (slug: string) =>
       get(
@@ -1015,6 +1072,9 @@ export const publicApi = {
       ),
 
 
+  /**
+   * Legacy/local-development product lookup.
+   */
   getProducts:
     (slug: string) =>
       get(
@@ -1022,6 +1082,9 @@ export const publicApi = {
       ),
 
 
+  /**
+   * Public loan application.
+   */
   apply:
     (data: unknown) =>
       post(
@@ -1030,6 +1093,9 @@ export const publicApi = {
       ),
 
 
+  /**
+   * Track application.
+   */
   trackApplication:
     (
       reference: string,
@@ -1040,6 +1106,9 @@ export const publicApi = {
       ),
 
 
+  /**
+   * Applicant dashboard.
+   */
   trackDashboard:
     (
       reference: string,
@@ -1057,6 +1126,9 @@ export const publicApi = {
       ),
 
 
+  /**
+   * Initiate applicant payment.
+   */
   initiatePayment:
     (
       reference: string,
@@ -1090,6 +1162,9 @@ export const publicApi = {
       ),
 
 
+  /**
+   * Track applicant comments.
+   */
   trackComments:
     (
       reference: string,
@@ -1100,6 +1175,9 @@ export const publicApi = {
       ),
 
 
+  /**
+   * List applicant documents.
+   */
   listDocuments:
     (
       reference: string,
@@ -1110,6 +1188,9 @@ export const publicApi = {
       ),
 
 
+  /**
+   * Download applicant document.
+   */
   downloadDocument:
     (
       reference: string,
@@ -1128,6 +1209,9 @@ export const publicApi = {
       ),
 
 
+  /**
+   * Delete applicant document.
+   */
   deleteDocument:
     (
       reference: string,
@@ -1139,6 +1223,9 @@ export const publicApi = {
       ),
 
 
+  /**
+   * Upload applicant document.
+   */
   uploadDocument:
     (
       reference: string,
@@ -1193,6 +1280,12 @@ export const publicApi = {
     },
 };
 
+
+/**
+ * =========================================================
+ * LEGACY LOAN IMPORT
+ * =========================================================
+ */
 
 export const importApi = {
 
@@ -1275,4 +1368,3 @@ export const importApi = {
         '/import/legacy-loans/batches'
       ),
 };
-

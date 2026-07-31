@@ -1,35 +1,107 @@
-/**
- * Multi-tenant domain resolution.
- *
- * In production, which organization this frontend renders is resolved by
- * the BACKEND from the request's own hostname (growthfinance.rw,
- * abcsacco.rw, ...) — see TenantResolutionFilter on the backend. This file
- * exists to tell the backend which hostname the browser is actually on
- * (via the X-Tenant-Domain header set in services/api.ts, and the plain
- * fetch() calls in app/(site)/layout.tsx) — nothing here decides the
- * tenant itself, it just reports it.
- *
- * TENANT_SLUG below is ONLY a local-development fallback for when there's
- * no real domain to resolve from (localhost) — see isLocalDev(). It is
- * never consulted on a real customer domain in production; on
- * growthfinance.rw the backend resolves the org from the domain itself and
- * this slug is ignored.
- */
 
-/** The hostname the browser is currently on, with a leading "www." stripped. Null on the server. */
+
 export function currentTenantDomain(): string | null {
-  if (typeof window === 'undefined') return null;
-  const host = window.location.hostname.toLowerCase();
-  return host.startsWith('www.') ? host.slice(4) : host;
+ 
+  const configuredDomain =
+    process.env.NEXT_PUBLIC_TENANT_DOMAIN?.trim().toLowerCase();
+
+  if (configuredDomain) {
+    return normalizeDomain(configuredDomain);
+  }
+
+  
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const host = window.location.hostname;
+
+  if (!host) {
+    return null;
+  }
+
+  const normalizedHost = normalizeDomain(host);
+
+  /*
+   * Local development only.
+   */
+  if (
+    normalizedHost === 'localhost' ||
+    normalizedHost === '127.0.0.1' ||
+    normalizedHost.endsWith('.local')
+  ) {
+    return normalizedHost;
+  }
+
+
+  return null;
 }
 
-/** True on localhost / *.local — anywhere there's no real customer domain for the backend to resolve. */
+
+
+function normalizeDomain(domain: string): string {
+  let result = domain.trim().toLowerCase();
+
+  if (
+    result.startsWith('http://') ||
+    result.startsWith('https://')
+  ) {
+    try {
+      result = new URL(result).hostname.toLowerCase();
+    } catch {
+      return '';
+    }
+  }
+
+
+  const colonIndex = result.indexOf(':');
+
+  if (colonIndex !== -1) {
+    result = result.substring(0, colonIndex);
+  }
+
+  
+  if (result.startsWith('www.')) {
+    result = result.substring(4);
+  }
+
+  
+  while (result.endsWith('.')) {
+    result = result.slice(0, -1);
+  }
+
+  return result;
+}
+
+
+
 export function isLocalDev(): boolean {
-  const host = currentTenantDomain();
-  if (host === null) return true; // server-side render before hydration — treat as dev-safe default
-  return host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+  const domain = currentTenantDomain();
+
+  if (!domain) {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
+    const host =
+      window.location.hostname.toLowerCase();
+
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host.endsWith('.local')
+    );
+  }
+
+  return (
+    domain === 'localhost' ||
+    domain === '127.0.0.1' ||
+    domain.endsWith('.local')
+  );
 }
 
-/** Local-dev-only fallback org slug — see isLocalDev(). Change via NEXT_PUBLIC_TENANT_SLUG for local testing. */
+
+
 export const TENANT_SLUG =
-  process.env.NEXT_PUBLIC_TENANT_SLUG || 'growthfinance';
+  process.env.NEXT_PUBLIC_TENANT_SLUG ||
+  'growthfinance';
