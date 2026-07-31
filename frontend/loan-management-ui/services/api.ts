@@ -701,21 +701,11 @@ export const privacyApi = {
  */
 
 export const creditBureauApi = {
-
-  /**
-   * Run a credit bureau check for a borrower.
-   *
-   * Backend:
-   * POST /api/credit-bureau/borrowers/{borrowerId}/check
-   *      ?organizationId={organizationId}
-   *      &requestedBy={requestedBy}
-   */
   check: (
     borrowerId: number,
     organizationId: number,
     requestedBy?: string
   ) => {
-
     const params = new URLSearchParams();
 
     params.set(
@@ -723,10 +713,10 @@ export const creditBureauApi = {
       String(organizationId)
     );
 
-    if (requestedBy?.trim()) {
+    if (requestedBy) {
       params.set(
         'requestedBy',
-        requestedBy.trim()
+        requestedBy
       );
     }
 
@@ -735,58 +725,22 @@ export const creditBureauApi = {
     );
   },
 
-
-  /**
-   * Credit bureau check history.
-   *
-   * GET /api/credit-bureau/borrowers/{borrowerId}/history
-   *     ?organizationId={organizationId}
-   */
   history: (
     borrowerId: number,
     organizationId: number
-  ) => {
+  ) =>
+    get(
+      `/credit-bureau/borrowers/${borrowerId}/history?organizationId=${organizationId}`
+    ),
 
-    const params = new URLSearchParams();
-
-    params.set(
-      'organizationId',
-      String(organizationId)
-    );
-
-    return get(
-      `/credit-bureau/borrowers/${borrowerId}/history?${params.toString()}`
-    );
-  },
-
-
-  /**
-   * Latest credit bureau check.
-   *
-   * GET /api/credit-bureau/borrowers/{borrowerId}/latest
-   *     ?organizationId={organizationId}
-   */
   latest: (
     borrowerId: number,
     organizationId: number
-  ) => {
+  ) =>
+    get(
+      `/credit-bureau/borrowers/${borrowerId}/latest?organizationId=${organizationId}`
+    ),
 
-    const params = new URLSearchParams();
-
-    params.set(
-      'organizationId',
-      String(organizationId)
-    );
-
-    return get(
-      `/credit-bureau/borrowers/${borrowerId}/latest?${params.toString()}`
-    );
-  },
-
-
-  /**
-   * Credit bureau report for a loan.
-   */
   reportForLoan: (
     loanId: number
   ) =>
@@ -794,10 +748,6 @@ export const creditBureauApi = {
       `/credit-bureau/loans/${loanId}/report`
     ),
 
-
-  /**
-   * Retry credit bureau report.
-   */
   retryReport: (
     loanId: number
   ) =>

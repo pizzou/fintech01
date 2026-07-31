@@ -716,112 +716,62 @@ export default function LoanDetailPage() {
      CREDIT BUREAU CHECK
   ======================================================= */
 
-  const handleCreditBureauCheck =
-    async () => {
+ const handleCreditBureauCheck = async () => {
+  if (!loan?.borrower?.id) {
+    setMsg({
+      type: 'error',
+      text: 'This loan has no linked borrower.',
+    });
+    return;
+  }
 
-      const borrowerId =
-        loan?.borrower?.id;
+  if (!loan?.organization?.id) {
+    setMsg({
+      type: 'error',
+      text: 'Organization information is missing from this loan.',
+    });
+    return;
+  }
 
+  setCbBusy(true);
+  setMsg(null);
 
-      if (!borrowerId) {
+  try {
+    const result: any = await creditBureauApi.check(
+      loan.borrower.id,
+      loan.organization.id
+    );
 
-        setMsg({
-          type: 'error',
-          text:
-            'This loan does not have a borrower linked to it.',
-        });
+    const simulated =
+      result?.provider === 'INTERNAL_SIMULATED';
 
-        return;
-      }
-
-
-      if (!organizationId) {
-
-        setMsg({
-          type: 'error',
-          text:
-            'Organization information is not available yet. Please wait a moment and try again.',
-        });
-
-        return;
-      }
-
-
-      setCbBusy(true);
-
-      setMsg(null);
-
-
-      try {
-
-        const result =
-          await creditBureauApi.check(
-            Number(borrowerId),
-            Number(organizationId)
-          );
-
-
-        const bureauResult =
-          result as CreditBureauResult;
-
-
-        setCreditBureauResult(
-          bureauResult
-        );
-
-
-        const simulated =
-          bureauResult?.provider ===
-          'INTERNAL_SIMULATED';
-
-
-        if (simulated) {
-
-          setMsg({
-            type: 'error',
-            text:
-              `⚠️ No live credit bureau connected — this is an internal ESTIMATE (score ${
-                bureauResult?.creditScore ??
-                'N/A'
-              }, ${
-                bureauResult?.riskGrade ??
-                'N/A'
-              }), not a verified bureau report. Do not treat this as confirmed credit history.`,
-          });
-
-        } else {
-
-          setMsg({
-            type: 'success',
-            text:
-              `Credit bureau check complete via ${
-                bureauResult?.provider ??
-                'credit bureau'
-              } — score ${
-                bureauResult?.creditScore ??
-                'N/A'
-              } (${
-                bureauResult?.riskGrade ??
-                'N/A'
-              })`,
-          });
-        }
-
-
-      } catch (err: any) {
-
-        setMsg({
-          type: 'error',
-          text:
-            err?.message ||
-            'Credit bureau check failed.',
-        });
-
-      } finally {
-
-        setCbBusy(false);
-      }
-    };
+    setMsg({
+      type: simulated ? 'error' : 'success',
+      text: simulated
+        ? `⚠️ No live credit bureau connected — this is an internal estimate only. Score: ${
+            result?.creditScore ?? 'N/A'
+          }, Risk: ${
+            result?.riskGrade ?? 'N/A'
+          }.`
+        : `Credit bureau check complete via ${
+            result?.provider ?? 'provider'
+          } — score ${
+            result?.creditScore ?? 'N/A'
+          } (${
+            result?.riskGrade ?? 'N/A'
+          })`,
+    });
+  } catch (err: any) {
+    setMsg({
+      type: 'error',
+      text:
+        err?.message ||
+        'Credit bureau check failed.',
+    });
+  } finally {
+    setCbBusy(false);
+  }
+};
 
 
   /* =======================================================
