@@ -38,7 +38,7 @@ jobs:
         continue-on-error: true   # first run in a repo often needs the NVD DB cache warmed —
                                   # flip to false once this has run clean at least once.
       - name: Upload report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dependency-check-report
           path: reports/dependency-check
